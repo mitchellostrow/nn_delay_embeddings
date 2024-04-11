@@ -61,7 +61,7 @@ class RNNBase(nn.Module):
         if self.training:
             hidden = self.dropout(self.hidden)
         out = self.out(self.hidden)    
-        return out   
+        return out,hidden   
 
     @torch.no_grad()
     def generate(self, idx, max_new_tokens):

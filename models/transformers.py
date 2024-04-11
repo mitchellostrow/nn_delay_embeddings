@@ -91,6 +91,7 @@ class Block(nn.Module):
 class minimalGPT(nn.Module):
     def __init__(self,input_dim,d_model,n_head,context_length):
         super().__init__()        
+        self.context_length = context_length
         self.transformer = nn.ModuleDict(dict(
 		    wte = nn.Linear(input_dim,d_model),
 		    wpe = nn.Embedding(context_length,d_model),
@@ -99,7 +100,11 @@ class minimalGPT(nn.Module):
 		    ))
         
     def forward(self,x):
-        pos = torch.arange(0, x.size(1), dtype=torch.long) # shape (t)
+        device = x.device
+        assert x.size(1) <= self.context_length, f"Cannot forward sequence of length {x.size(1)}, block size is only {self.context_length}"
+		# forward the model itself
+
+        pos = torch.arange(0, x.size(1), dtype=torch.long, device=device) # shape (t)
         embed = self.transformer.wte(x) # token embeddings of shape (b, t, n_embd)
 
         pos_emb = self.transformer.wpe(pos) # position embeddings of shape (t, n_embd)
