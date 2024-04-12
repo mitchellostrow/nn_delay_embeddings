@@ -6,7 +6,7 @@ import numpy as np
 
 #basic training loop to train a model
 
-def train(model,train_set,val_set,epochs,lr,optimizer,loss_fn,device):
+def train(model,train_set,val_set,epochs,lr,optimizer,loss_fn,device,nsteps=1):
     '''
     Trains a model on a dataset
     '''
@@ -18,13 +18,16 @@ def train(model,train_set,val_set,epochs,lr,optimizer,loss_fn,device):
         model.train()
         total_loss = 0
         for i,data in enumerate(train_set):
-            x = data[:,:-1]
-            y = data[:,1:]
+            
+            x = data[:,:-nsteps]
+            y = data[:,nsteps:]
 
             x = x.to(device)
             y = y.to(device)
             optimizer.zero_grad()
-            y_pred,_ = model(x)
+            for _ in range(nsteps):
+                y_pred,_ = model(x)
+                x = y_pred
             loss = loss_fn(y_pred,y)
             loss.backward()
             optimizer.step()
