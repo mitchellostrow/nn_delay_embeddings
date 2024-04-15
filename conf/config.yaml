@@ -1,0 +1,29 @@
+defaults:
+  - model: s4
+  # - slurm: default
+  - _self_
+
+
+attractor:
+  name: Lorenz
+  driven_noise: 0.0
+  observed_noise: 0.01
+  dim_observed: 0
+  resample: True
+
+data:
+  time: 1000
+  nsamples: 5000
+  batch_size: 32
+
+train:
+  optimizer: AdamW
+  lr: 0.001
+  weight_decay: 0.01
+  epochs: 1000
+  loss: nn.MSELoss
+  nsteps: [1,2] #train on nstep prediction
+
+metrics: 
+  dyn: [KY,correl,autocorrel,MI,maxLE]
+  pred: [MSE, MASE]

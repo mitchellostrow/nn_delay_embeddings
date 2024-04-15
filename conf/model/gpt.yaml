@@ -1,0 +1,6 @@
+kwargs:
+  input_dim: 1
+  d_model: 100
+  n_head: 4
+  context_length: 100 
+  seed: 10

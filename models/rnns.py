@@ -5,8 +5,8 @@ from torch.autograd import Variable
 #TODO: delay_embedded RNNs need to be added but that can be done on the input level
 
 class RNNBase(nn.Module):
-    def __init__(self,input_dim,output_dim,architecture='LSTM',d_model=10,activation='sigmoid',
-                rseed=1,dropout=0.0,n_layer=None):
+    def __init__(self,input_dim,output_dim,architecture='LSTM',d_model=10,activation='tanh',
+                rseed=1,dropout=0.0):
         '''
         Initializes RNN from config data
         '''

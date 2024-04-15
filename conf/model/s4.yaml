@@ -1,0 +1,10 @@
+kwargs:
+  d_input: 1
+  d_output: 1
+  d_model: 1
+  d_state: 100
+  dropout: 0.0
+  prenorm: False
+  expansion: 4
+  noC: True
+  seed: 10

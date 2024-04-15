@@ -1,0 +1,5 @@
+kwargs:
+  d_model: 10
+  d_inner: 10
+  dt_rank: 10
+  d_state: 100

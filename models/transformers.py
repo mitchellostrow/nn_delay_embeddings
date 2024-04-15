@@ -2,6 +2,7 @@ import torch.nn as nn
 import torch
 import math
 import torch.nn.functional as F
+import warnings
 
 
 class MLP(nn.Module):
@@ -88,9 +89,11 @@ class Block(nn.Module):
         x = x + self.mlp(x)
         return x
 
-class minimalGPT(nn.Module):
-    def __init__(self,input_dim,d_model,n_head,context_length):
+class GPT(nn.Module):
+    def __init__(self,input_dim,d_model,n_head,context_length,seed=10):
         super().__init__()        
+        #set seed
+        torch.manual_seed(seed)
         self.context_length = context_length
         self.transformer = nn.ModuleDict(dict(
 		    wte = nn.Linear(input_dim,d_model),
@@ -101,7 +104,10 @@ class minimalGPT(nn.Module):
         
     def forward(self,x):
         device = x.device
-        assert x.size(1) <= self.context_length, f"Cannot forward sequence of length {x.size(1)}, block size is only {self.context_length}"
+        #rather than asserting,just raise a warning
+        warnings.warn(f"This model is not designed to handle sequences longer than the context length, current length {x.size(1)}, block size is only {self.context_length}")
+        #cut the sequence to the context length
+        x = x[:,-self.context_length:]
 		# forward the model itself
 
         pos = torch.arange(0, x.size(1), dtype=torch.long, device=device) # shape (t)
