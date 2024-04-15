@@ -11,7 +11,7 @@ class S4D_rnn(nn.Module):
 
         self.noC = noC
         if seed is not None:
-            torch.random.seed(seed)
+            torch.manual_seed(seed)
 
         log_dt = torch.rand(n_inputs) * (math.log(dt_max) - math.log(dt_min)) + np.log(dt_min)
         self.register("log_dt",log_dt,lr)
@@ -133,12 +133,12 @@ class S4D_rnn(nn.Module):
             return None, y
 
 class S4DMinimal(nn.Module):
-    def __init__(self,d_input,d_output,d_model,d_state,dropout=0.0,prenorm=False,expansion=4,noC=False):
+    def __init__(self,d_input,d_output,d_model,d_state,dropout=0.0,prenorm=False,expansion=4,noC=False,seed=10):
         super().__init__()
         self.noC = noC
         self.prenorm = prenorm
         self.encoder = nn.Linear(d_input,d_model)
-        self.s4 = S4D_rnn(n_inputs=d_model,n_states_per_input=d_state,noC=noC)
+        self.s4 = S4D_rnn(n_inputs=d_model,n_states_per_input=d_state,noC=noC,seed=seed)
         if self.noC: #if we return all A's (the delay embedded formulation)
             self.dm = d_state * d_model // 2 #dividing by 2 bc of conjugate pairs
         else:
@@ -164,8 +164,8 @@ class S4DMinimal(nn.Module):
         #TODO: can we get the hidden states out of the cnn mode? 
         #answer: only in noC
 
-    def train(self):
-        super().train()
+    def train(self,mode=True): #super requires the mode argument
+        super().train(mode)
         self.rnn = False
 
     def forward(self,x):

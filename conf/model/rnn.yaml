@@ -1,3 +1,4 @@
+name: RNN
 kwargs:
   input_dim: 1
   output_dim: 1

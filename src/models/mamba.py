@@ -16,30 +16,30 @@ class MambaRMSNorm(nn.Module):
     
 
 class MinimalMamba(nn.Module):
-    def __init__(self, d_model,d_inner,dt_rank,d_state,bias=True):
+    def __init__(self, d_input,d_output,d_model,dt_rank,d_state,bias=True):
         """A single Mamba block, as described in Figure 3 in Section 3.4 in the Mamba paper [1]."""
         #Mitchell's note: d_model is the dimensionality of the input and output (the embedding)
-        #d_inner is the dimensionality of the input to the SSM 
+        #d_model is the dimensionality of the input to the SSM 
         #d_state is the dimensionality of the state space for each input
         super().__init__()
-        self.d_inner = d_inner
         self.d_model = d_model
+        self.d_input = d_input
         self.dt_rank = dt_rank
         self.d_state = d_state
         
-        self.in_proj = nn.Linear(d_model, d_inner * 2, bias=bias)
+        self.in_proj = nn.Linear(d_input, d_model * 2, bias=bias)
 
         # x_proj takes in `x` and outputs the input-specific Δ, B, C
-        self.x_proj = nn.Linear(d_inner, dt_rank + d_state * 2, bias=False)
+        self.x_proj = nn.Linear(d_model, dt_rank + d_state * 2, bias=False)
         
         # dt_proj projects Δ from dt_rank to d_in
-        self.dt_proj = nn.Linear(dt_rank, d_inner, bias=True)
+        self.dt_proj = nn.Linear(dt_rank, d_model, bias=True)
 
-        A = repeat(torch.arange(1, d_state + 1), 'n -> d n', d=d_inner)
+        A = repeat(torch.arange(1, d_state + 1), 'n -> d n', d=d_model)
         self.A_log = nn.Parameter(torch.log(A))
-        self.D = nn.Parameter(torch.ones(d_inner))
-        self.out_proj = nn.Linear(d_inner, d_model, bias=bias)
-        self.norm = MambaRMSNorm(d_model)
+        self.D = nn.Parameter(torch.ones(d_model))
+        self.out_proj = nn.Linear(d_model, d_output, bias=bias)
+        self.norm = MambaRMSNorm(d_input)
         self.norm_f = MambaRMSNorm(d_model)
 
     def forward(self, x):
@@ -61,7 +61,7 @@ class MinimalMamba(nn.Module):
         x_copy = x # There was a separate class for residual, I deleted that part and added it here.
         x = self.norm(x)
         x_and_res = self.in_proj(x)  # shape (b, l, 2 * d_in)
-        (x, res) = x_and_res.split(split_size=[self.d_inner, self.d_inner], dim=-1)
+        (x, res) = x_and_res.split(split_size=[self.d_model, self.d_model], dim=-1)
 
         x = rearrange(x, 'b l d_in -> b d_in l')
         x = rearrange(x, 'b d_in l -> b l d_in')

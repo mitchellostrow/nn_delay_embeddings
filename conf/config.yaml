@@ -1,5 +1,5 @@
 defaults:
-  - model: s4
+  - model: mamba
   # - slurm: default
   - _self_
 
@@ -7,22 +7,23 @@ defaults:
 attractor:
   name: Lorenz
   driven_noise: 0.0
-  observed_noise: 0.01
+  observed_noise: 0.00
   dim_observed: 0
   resample: True
+  timescale: 0.01 #if resample is False, we need to pick this. TODO: implement
 
 data:
-  time: 1000
-  nsamples: 5000
+  time: 100
+  nsamples: 200
   batch_size: 32
 
 train:
   optimizer: AdamW
-  lr: 0.001
-  weight_decay: 0.01
-  epochs: 1000
+  lr: 0.005
+  weight_decay: 0.001
+  epochs: 200
   loss: nn.MSELoss
-  nsteps: [1,2] #train on nstep prediction
+  nsteps: [1] #train on nstep prediction
 
 metrics: 
   dyn: [KY,correl,autocorrel,MI,maxLE]

@@ -105,9 +105,16 @@ class GPT(nn.Module):
     def forward(self,x):
         device = x.device
         #rather than asserting,just raise a warning
-        warnings.warn(f"This model is not designed to handle sequences longer than the context length, current length {x.size(1)}, block size is only {self.context_length}")
-        #cut the sequence to the context length
-        x = x[:,-self.context_length:]
+        if x.size(1) > self.context_length:
+            warnings.warn(f"This model is not designed to handle sequences longer than the context length, current length {x.size(1)}, block size is only {self.context_length}")
+            #cut the sequence to the context length
+            #loop through the sequence, iterating by context length chunks
+            #then concatenate
+            # chunks = x.size(1) // self.context_length
+            # for i in range(chunks):
+            #     o = x[:,i*self.context_length:(i+1)*self.context_length]
+            #for now just pass
+            raise AssertionError
 		# forward the model itself
 
         pos = torch.arange(0, x.size(1), dtype=torch.long, device=device) # shape (t)

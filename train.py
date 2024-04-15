@@ -12,9 +12,10 @@ import os
 from omegaconf import DictConfig
 from torch.utils.data import DataLoader
 from torch.optim import AdamW, Adam, SGD
-from metrics import compute_all_metrics
+from src.models import *
+# from metrics import compute_all_metrics
 
-wandb.init(project="nn_delays")
+
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 def gen_data(cfg):
@@ -28,10 +29,10 @@ def gen_data(cfg):
                                 resample=cfg.attractor.resample,
                                 noise=cfg.attractor.driven_noise)
     
-    data += np.random.randn(*data.shape) * cfg.data.noise
+    data += np.random.randn(*data.shape) * cfg.attractor.observed_noise
 
     data_used = torch.tensor(data).float()[:,:,dim_observed:dim_observed+1]
-    print(data.shape, data_used.shape)
+    # print(data.shape, data_used.shape)
     loader = DataLoader(data_used, batch_size=cfg.data.batch_size, shuffle=True)
     return loader, data
 
@@ -67,6 +68,7 @@ def train(model,train_set,val_set,epochs,optimizer,loss_fn,device,nsteps=1):
                 total_loss += loss.item()
             train_loss.append(total_loss/len(train_set))
 
+            print(f'Epoch {epoch} Training Loss: {total_loss/len(train_set)}')
             #log on wandb instead
             wandb.log({"train_loss":total_loss/len(train_set)})
 
@@ -92,7 +94,11 @@ def train(model,train_set,val_set,epochs,optimizer,loss_fn,device,nsteps=1):
 def main(cfg: DictConfig):
     model = eval(cfg.model.name)(**cfg.model.kwargs)
     model.train()
+    dict_cfg = {**cfg.model.kwargs,"name":cfg.model.name, **cfg.attractor, **cfg.data, **cfg.train}
+    wandb.init(project="nn_delays",config=dict_cfg)
+
     wandb.watch(model,log_freq=100)
+
 
     #generate the data
     train_loader, train_dat = gen_data(cfg)
@@ -102,7 +108,7 @@ def main(cfg: DictConfig):
     optimizer = eval(cfg.train.optimizer)
     optimizer = optimizer(model.parameters(),lr=cfg.train.lr,weight_decay=cfg.train.weight_decay)
 
-    loss = eval(cfg.train.loss)
+    loss = eval(cfg.train.loss)()
     model,train_loss,val_loss = train(model,
                                       train_loader,
                                       val_loader,
@@ -113,15 +119,15 @@ def main(cfg: DictConfig):
                                       nsteps=cfg.train.nsteps)
 
     #save the model
-    torch.save(model.state_dict(),os.getcwd() + f'/models/{cfg.model.name}.pt')
+    torch.save(model.state_dict(),os.getcwd() + f'/{cfg.model.name}.pt')
 
     #run metric evaluation
     model.eval()
 
-    metrics = compute_all_metrics(model,val_dat,cfg.metrics.dyn,cfg.metrics.pred)
+    # metrics = compute_all_metrics(model,val_dat,cfg.metrics.dyn,cfg.metrics.pred)
 
     #log the metrics
-    wandb.log(metrics)
+    # wandb.log(metrics)
 
 
 if __name__ == "__main__":
