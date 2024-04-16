@@ -94,7 +94,7 @@ class S4D_rnn(nn.Module):
                 else:
                     ys[:,:,i] = einsum(C,xs,'d n, b d n -> b d')
             
-            all_xs = torch.stack(all_xs,dim=-1)
+            all_xs = torch.stack(all_xs,dim=-1).transpose(-1,-2).transpose(-2,-3) # (B, L, H, N)
 
             return all_xs, ys.real
 

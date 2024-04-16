@@ -224,6 +224,14 @@ def calc_lyap(traj1,traj2,eps_max,tvals):
     lyap = calculate_lyapunov_exponent(traj1, traj2, dt=np.median(np.diff(tvals)))
     return lyap, cutoff_index
     
+def get_flattened_hidden(model,inp):
+    h1 = model(inp)[1].detach().numpy()[0] 
+    #first 1 is to read out hidden state only, second 0 is to read out the first trajectory in the batch 
+    if h1.ndim == 4:
+        #flatten the last 2 dims
+        h1 = h1.reshape(h1.shape[0],h1.shape[1],-1)
+    return h1
+    
 def compute_LE_model(model, eq,obs_fxn=lambda x: x[:,0:1],
                      rtol=1e-3, atol=1e-10, n_samples=1000, traj_length=5000):
     #model is the neural network
@@ -236,8 +244,8 @@ def compute_LE_model(model, eq,obs_fxn=lambda x: x[:,0:1],
         traj_length=max(traj_length, n_samples),
         pts_per_period=15,
     )
-    eps_attractor = atol
-    eps_model = atol * 1e3
+    eps_attractor = 1e-3
+    eps_model = 1e-2
     eps_max = rtol
     all_lyap_eq = []
     all_cutoffs_eq = []
@@ -259,7 +267,8 @@ def compute_LE_model(model, eq,obs_fxn=lambda x: x[:,0:1],
             
             if compute == "attractor":
                 eq.ic = ic
-                eq.ic *= (1 + eps_attractor * (np.random.random(eq.ic.shape) - 0.5))
+                eq.ic += eps_attractor * np.random.random(eq.ic.shape) 
+                #*= (1 + eps_attractor * (np.random.random(eq.ic.shape) - 0.5))
                 tvals, traj2 = eq.make_trajectory(
                     traj_length, resample=True, return_times=True,
                     )
@@ -273,7 +282,9 @@ def compute_LE_model(model, eq,obs_fxn=lambda x: x[:,0:1],
             else:
                 eq.ic = ic
                 #perturb the initial conditions by a larger amount for the model
-                eq.ic *= (1 + eps_model * (np.random.random(eq.ic.shape) - 0.5))
+                eq.ic += eps_model * np.random.random(eq.ic.shape) 
+
+                # eq.ic *= (1 + eps_model * (np.random.random(eq.ic.shape) - 0.5))
                 tvals, traj2 = eq.make_trajectory(
                     traj_length, resample=True, return_times=True,
                     )
@@ -282,12 +293,10 @@ def compute_LE_model(model, eq,obs_fxn=lambda x: x[:,0:1],
                 traj2_x = obs_fxn(traj2)
                 traj1_x = torch.tensor(traj1_x).float().reshape(1,-1,1)
                 traj2_x = torch.tensor(traj2_x).float().reshape(1,-1,1)
-                h1 = model(traj1_x)[1].detach().numpy()[0]
-                #first 1 is to read out hidden state only, second 0 is to read out the first trajectory in the batch 
 
-                h2 = model(traj2_x)[1].detach().numpy()[0]
+                h1 = get_flattened_hidden(model,traj1_x)
+                h2 = get_flattened_hidden(model,traj2_x)
 
-                import ipdb; ipdb.set_trace()
                 lyap, cutoff_index = calc_lyap(h1,h2,eps_max * 1e3,tvals)
                 all_lyap_model.append(lyap)
                 all_cutoffs_model.append(cutoff_index)
@@ -328,9 +337,10 @@ def compute_dynamic_quantities(model,attractor,traj_length,ntrajs):
             traj_length*2, resample=False, return_times=True,
             ) 
 
-    traj1_x = torch.tensor(traj1).float()
-    h1 = model(traj1_x)[0].detach().numpy()
+    traj1_x = torch.tensor(traj1).float().reshape(1,-1,1)
+    h1 = model(traj1_x)[1].detach().numpy()[0]
     attractor_corr_int = corr_integral(traj1)
+
     model_corr_int = corr_integral(h1)
 
     print("calculating multiscale entropy")

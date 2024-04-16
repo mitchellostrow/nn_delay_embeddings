@@ -2,6 +2,7 @@ import torch.nn as nn
 import torch
 import torch.nn.functional as F
 from einops import rearrange, repeat, einsum
+from copy import deepcopy 
 
 class MambaRMSNorm(nn.Module):
     def __init__(self,
@@ -68,7 +69,7 @@ class MinimalMamba(nn.Module):
         
         x = F.silu(x)
 
-        y = self.ssm(x)
+        y,hiddens = self.ssm(x)
         
         y = y * F.silu(res)
 
@@ -78,7 +79,7 @@ class MinimalMamba(nn.Module):
 
         output = self.out_proj(y) 
 
-        return output,None
+        return output,self.hiddens
 
     
     def ssm(self, x):
@@ -111,9 +112,9 @@ class MinimalMamba(nn.Module):
         (delta, B, C) = x_dbl.split(split_size=[self.dt_rank, n, n], dim=-1)  # delta: (b, l, dt_rank). B, C: (b, l, n)
         delta = F.softplus(self.dt_proj(delta))  # (b, l, d_in)
         
-        y = self.selective_scan(x, delta, A, B, C, D)  # This is similar to run_SSM(A, B, C, u) in The Annotated S4 [2]
+        y,self.hiddens = self.selective_scan(x, delta, A, B, C, D)  # This is similar to run_SSM(A, B, C, u) in The Annotated S4 [2]
         
-        return y
+        return y,self.hiddens #for consistency with the other models
 
     
     def selective_scan(self, u, delta, A, B, C, D):
@@ -166,7 +167,7 @@ class MinimalMamba(nn.Module):
         self.hiddens = torch.stack(self.hiddens, dim=1)
         y = y + u * D
     
-        return y
+        return y,self.hiddens
 
 
 
