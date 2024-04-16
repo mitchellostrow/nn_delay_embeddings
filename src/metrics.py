@@ -1,5 +1,9 @@
-from dysts import metrics
+from dysts.analysis import kaplan_yorke_dimension, corr_integral,mse_mv
+from dysts.analysis import sample_initial_conditions
+from dysts.analysis import calculate_lyapunov_exponent
 import numpy as np
+import torch
+from copy import deepcopy
 
 
 def mae(x, y):
@@ -211,3 +215,145 @@ def compute_all_pred_stats(true_vals, pred_vals, rank, norm=True):
         "AIC": aic(true_vals, pred_vals, rank, norm=norm),
         "logMSE": log_mse(true_vals,pred_vals,norm=norm)
     }
+
+def calc_lyap(traj1,traj2,eps_max,tvals):
+    separation = np.linalg.norm(traj1 - traj2, axis=1) / np.linalg.norm(traj1, axis=1)
+    cutoff_index = np.where(separation < eps_max)[0][-1]
+    traj1 = traj1[:cutoff_index]
+    traj2 = traj2[:cutoff_index]
+    lyap = calculate_lyapunov_exponent(traj1, traj2, dt=np.median(np.diff(tvals)))
+    return lyap, cutoff_index
+    
+def compute_LE_model(model, eq,obs_fxn=lambda x: x[:,0:1],
+                     rtol=1e-3, atol=1e-10, n_samples=1000, traj_length=5000):
+    #model is the neural network
+    #eq is the attractor
+    #obs_fxn is the function that extracts the observed data to be input into the model
+
+    all_ic = sample_initial_conditions(
+        eq, 
+        n_samples, 
+        traj_length=max(traj_length, n_samples),
+        pts_per_period=15,
+    )
+    eps_attractor = atol
+    eps_model = atol * 1e3
+    eps_max = rtol
+    all_lyap_eq = []
+    all_cutoffs_eq = []
+    #same thing but for the NN
+    all_lyap_model = []
+    all_cutoffs_model = []
+    traj1_tot = []
+    traj2_tot = []
+    for compute in ["attractor","model"]:
+        for ind, ic in enumerate(all_ic):
+            np.random.seed(ind)
+            eq.random_state = ind
+            eq.ic = ic    
+            tvals, traj1 = eq.make_trajectory(
+                traj_length, resample=True, return_times=True,
+                )
+
+            traj1_tot.append(deepcopy(traj1))
+            
+            if compute == "attractor":
+                eq.ic = ic
+                eq.ic *= (1 + eps_attractor * (np.random.random(eq.ic.shape) - 0.5))
+                tvals, traj2 = eq.make_trajectory(
+                    traj_length, resample=True, return_times=True,
+                    )
+
+                traj2_tot.append(deepcopy(traj2))
+
+                lyap, cutoff_index = calc_lyap(traj1,traj2,eps_max,tvals)
+                all_cutoffs_eq.append(cutoff_index)
+                all_lyap_eq.append(lyap)
+
+            else:
+                eq.ic = ic
+                #perturb the initial conditions by a larger amount for the model
+                eq.ic *= (1 + eps_model * (np.random.random(eq.ic.shape) - 0.5))
+                tvals, traj2 = eq.make_trajectory(
+                    traj_length, resample=True, return_times=True,
+                    )
+                #next, pass these through the model
+                traj1_x = obs_fxn(traj1)
+                traj2_x = obs_fxn(traj2)
+                traj1_x = torch.tensor(traj1_x).float().reshape(1,-1,1)
+                traj2_x = torch.tensor(traj2_x).float().reshape(1,-1,1)
+                h1 = model(traj1_x)[1].detach().numpy()[0]
+                #first 1 is to read out hidden state only, second 0 is to read out the first trajectory in the batch 
+
+                h2 = model(traj2_x)[1].detach().numpy()[0]
+
+                import ipdb; ipdb.set_trace()
+                lyap, cutoff_index = calc_lyap(h1,h2,eps_max * 1e3,tvals)
+                all_lyap_model.append(lyap)
+                all_cutoffs_model.append(cutoff_index)
+
+    all_lyap_eq = np.array(all_lyap_eq)
+    all_cutoffs_eq = np.array(all_cutoffs_eq)
+    all_lyap_model = np.array(all_lyap_model)
+    all_cutoffs_model = np.array(all_cutoffs_model)
+    print("lyap eq",all_lyap_eq)
+    print("lyap model",all_lyap_model)
+    return all_lyap_eq, all_cutoffs_eq, all_lyap_model, all_cutoffs_model, traj1_tot, traj2_tot
+
+
+def compute_dynamic_quantities(model,attractor,traj_length,ntrajs):
+    #basically what we're going to do is sampple a bunch of trajectories from the attractor
+    #compute dynamical quantities on them, then pass the trajectories through the model
+    #extract the hidden states on it, and then compute the same dynamical quantities on the hidden states
+
+    print("getting lyapunov exponents")
+
+    attractor_lyap, _ , model_lyap, _ , traj1_tot, traj2_tot = compute_LE_model(
+        model, attractor, traj_length=traj_length, n_samples=ntrajs
+    )
+
+    print("calculating KY dim")
+
+    #calculate the kaplan-yorke dim of attractor and model lyaps
+    attractor_ky = kaplan_yorke_dimension(attractor_lyap)
+    model_ky = kaplan_yorke_dimension(model_lyap)
+
+
+    print("calculating correlation integral")
+    #for correlation integral, we want to generate 1 really long trajectory
+    #and then pass it through the model
+    #then we'll calculate the correlation integral on the hidden states
+    #and the observed data
+    tvals, traj1 = attractor.make_trajectory(
+            traj_length*2, resample=False, return_times=True,
+            ) 
+
+    traj1_x = torch.tensor(traj1).float()
+    h1 = model(traj1_x)[0].detach().numpy()
+    attractor_corr_int = corr_integral(traj1)
+    model_corr_int = corr_integral(h1)
+
+    print("calculating multiscale entropy")
+    attractor_multiscale_entropy = mse_mv(traj1)
+    model_multiscale_entropy = mse_mv(h1)
+
+    #put each set of stats into a separate dictionary
+    attractor_stats = {
+        "lyap": attractor_lyap,
+        "ky": attractor_ky,
+        "corr_int": attractor_corr_int,
+        "multiscale_entropy": attractor_multiscale_entropy
+    }
+    model_stats = {
+        "lyap": model_lyap,
+        "ky": model_ky,
+        "corr_int": model_corr_int,
+        "multiscale_entropy": model_multiscale_entropy
+    }
+
+    return attractor_stats, model_stats
+
+    
+
+
+
