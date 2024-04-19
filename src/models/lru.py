@@ -28,7 +28,8 @@ class LRUBlock(nn.Module):
 
         # initialize D as real, the skip connection
         # this may also need to have a omplex component to it for type issues
-        self.D = nn.Parameter(torch.rand(output_dim, input_dim)) / math.sqrt(input_dim)
+        D = torch.rand(output_dim, input_dim)/ math.sqrt(input_dim)
+        self.D = nn.Parameter(D) 
 
     def init_A(self, d_model, rmin, rmax):
         # Lemma 3.2. Let 𝑢1, 𝑢2 be independent uniform random variables on the interval [0, 1].
@@ -48,7 +49,7 @@ class LRUBlock(nn.Module):
         self.theta_log = nn.Parameter(theta)
 
         gamma = torch.sqrt(1 - torch.exp(-torch.exp(nu)) ** 2)
-        self.gamma_log = nn.Parameter(gamma)
+        self.gamma_log = nn.Parameter(gamma)    
 
     def forward(self, inputs, rnn=False):
         # input is a tensor of shape (batch_size, input_dim, L)
@@ -56,7 +57,6 @@ class LRUBlock(nn.Module):
             inputs = inputs.unsqueeze(1)
 
         skip = einsum(inputs, self.D, "b l h, d h -> b l d")
-
         # cast inputs to complex float
         inputs = inputs.to(torch.complex64)
 
@@ -84,7 +84,7 @@ class LRUBlock(nn.Module):
 
         else:
             # Vandermonde multiplication
-            H = A[:, None] ** torch.arange(L)
+            H = A[:, None] ** torch.arange(L,device=device)
             h_f = torch.fft.fft(H, n=2 * L, dim=1)
 
             u_f = torch.fft.fft(u, n=2 * L, dim=1)  # (B H L)
@@ -94,31 +94,33 @@ class LRUBlock(nn.Module):
 
         return x, y
 
-
 class LRUMinimal(nn.Module):
     # a 1-layer LRU!
     def __init__(
         self,
         input_dim,
-        d_model,
+        d_model, #dimensionality of the embedding
+        d_state = None, #dimensionality of the state space
         expansion=4,
         rmin=0.8,
         rmax=0.99,
-        max_phase=2 * math.pi,
     ):
         super().__init__()
+        if d_state is None:
+            d_state = d_model
         self.encoder = nn.Linear(input_dim, d_model)
 
         self.layernorm = nn.LayerNorm(d_model)
 
-        self.lru = LRUBlock(d_model, rmin=rmin, rmax=rmax, max_phase=max_phase)
+        self.lru = LRUBlock(d_model,d_state, rmin=rmin, rmax=rmax)
 
         self.mlp = nn.Sequential(
             nn.Linear(d_model, d_model * expansion),
-            nn.GeLU(),
+            nn.GELU(),
             nn.Linear(d_model * expansion, d_model),
         )
         self.decoder = nn.Linear(d_model, input_dim)
+        self.rnn = False
 
     def eval(self):
         super().eval()  # do everything in the superclass, we love inheritance!
@@ -132,7 +134,7 @@ class LRUMinimal(nn.Module):
         # make sure shape is correct here!
         x = self.encoder(inputs)
         x = self.layernorm(x)
-        x = self.lru(x, rnn=self.rnn)
+        hiddens,x = self.lru(x, rnn=self.rnn)
         x = self.mlp(x)
         x = self.decoder(x)
-        return x
+        return x, hiddens
