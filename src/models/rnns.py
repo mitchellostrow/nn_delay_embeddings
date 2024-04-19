@@ -9,9 +9,8 @@ class RNNBase(nn.Module):
     def __init__(
         self,
         input_dim,
-        output_dim,
-        architecture="LSTM",
         d_model=10,
+        architecture="LSTM",
         activation="tanh",
         seed=1,
         dropout=0.0,
@@ -29,7 +28,7 @@ class RNNBase(nn.Module):
         self.dropout = nn.Dropout(dropout)
         torch.manual_seed(seed)  # set random seed
         self.initialize_rnn()
-        self.out = nn.Linear(self.hidden_size, output_dim)
+        self.out = nn.Linear(self.hidden_size, input_dim)
         for w in self.parameters():
             if len(w.shape) == 1:
                 nn.init.zeros_(w)  # fill bias with 0s initially

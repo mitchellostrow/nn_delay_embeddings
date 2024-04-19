@@ -9,7 +9,7 @@ class S4D_rnn(nn.Module):
     # this computes an s4d model
     def __init__(
         self,
-        n_inputs,
+        input_dim,
         n_states_per_input,
         dt_min=1e-3,
         dt_max=1e-1,
@@ -23,25 +23,25 @@ class S4D_rnn(nn.Module):
         if seed is not None:
             torch.manual_seed(seed)
 
-        log_dt = torch.rand(n_inputs) * (math.log(dt_max) - math.log(dt_min)) + np.log(
+        log_dt = torch.rand(input_dim) * (math.log(dt_max) - math.log(dt_min)) + np.log(
             dt_min
         )
         self.register("log_dt", log_dt, lr)
 
         # s4d-lin intialization
-        log_A_real = torch.log(0.5 * torch.ones(n_inputs, n_states_per_input // 2))
+        log_A_real = torch.log(0.5 * torch.ones(input_dim, n_states_per_input // 2))
         A_imag = math.pi * repeat(
-            torch.arange(n_states_per_input // 2), "n -> h n", h=n_inputs
+            torch.arange(n_states_per_input // 2), "n -> h n", h=input_dim
         )
 
         self.register("log_A_real", log_A_real, lr)
         self.register("A_imag", A_imag, lr)
 
-        B = torch.ones((n_inputs, n_states_per_input)) + 0j
+        B = torch.ones((input_dim, n_states_per_input)) + 0j
         self.register("B", B, lr)
 
-        C = torch.rand(n_inputs, n_states_per_input // 2) + 1j * torch.rand(
-            n_inputs, n_states_per_input // 2
+        C = torch.rand(input_dim, n_states_per_input // 2) + 1j * torch.rand(
+            input_dim, n_states_per_input // 2
         )
         self.register("C", C, lr)
 
@@ -163,8 +163,7 @@ class S4D_rnn(nn.Module):
 class S4DMinimal(nn.Module):
     def __init__(
         self,
-        d_input,
-        d_output,
+        input_dim,
         d_model,
         d_state,
         dropout=0.0,
@@ -176,9 +175,9 @@ class S4DMinimal(nn.Module):
         super().__init__()
         self.noC = noC
         self.prenorm = prenorm
-        self.encoder = nn.Linear(d_input, d_model)
+        self.encoder = nn.Linear(input_dim, d_model)
         self.s4 = S4D_rnn(
-            n_inputs=d_model, n_states_per_input=d_state, noC=noC, seed=seed
+            input_dim=d_model, n_states_per_input=d_state, noC=noC, seed=seed
         )
         if self.noC:  # if we return all A's (the delay embedded formulation)
             self.dm = d_state * d_model // 2  # dividing by 2 bc of conjugate pairs
@@ -187,13 +186,13 @@ class S4DMinimal(nn.Module):
 
         self.norm = nn.LayerNorm(self.dm) if not prenorm else nn.LayerNorm(d_model)
 
-        # self.decoder = nn.Linear(dm,d_output)
+        # self.decoder = nn.Linear(dm,input_dim)
 
         self.decoder = nn.Sequential(
             nn.Linear(self.dm, expansion * self.dm),
             nn.ReLU(),
             nn.Dropout(dropout),
-            nn.Linear(expansion * self.dm, d_output),
+            nn.Linear(expansion * self.dm, input_dim),
         )
 
         self.rnn = False
@@ -209,7 +208,7 @@ class S4DMinimal(nn.Module):
         self.rnn = False
 
     def forward(self, x):
-        u = self.encoder(x)  # (B, L, d_input) -> (B, L, d_model)
+        u = self.encoder(x)  # (B, L, input_dim) -> (B, L, d_model)
         b, l, dinp = u.shape
 
         u = u.transpose(-1, -2)  # (B, L, d_model) -> (B, d_model, L)
@@ -240,6 +239,6 @@ class S4DMinimal(nn.Module):
         # zs = zs.transpose(-1, -2) # B, d_model, L
 
         # Decode the outputs
-        zs = self.decoder(zs)  # (B, L, d_model) -> (B, L, d_output)
+        zs = self.decoder(zs)  # (B, L, d_model) -> (B, L, input_dim)
 
         return zs, xs

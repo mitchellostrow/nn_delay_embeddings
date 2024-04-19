@@ -19,18 +19,18 @@ class MambaRMSNorm(nn.Module):
 
 
 class MinimalMamba(nn.Module):
-    def __init__(self, d_input, d_output, d_model, dt_rank, d_state, bias=True):
+    def __init__(self, input_dim, d_model, dt_rank, d_state, bias=True):
         """A single Mamba block, as described in Figure 3 in Section 3.4 in the Mamba paper [1]."""
         # Mitchell's note: d_model is the dimensionality of the input and output (the embedding)
         # d_model is the dimensionality of the input to the SSM
         # d_state is the dimensionality of the state space for each input
         super().__init__()
         self.d_model = d_model
-        self.d_input = d_input
+        self.input_dim = input_dim
         self.dt_rank = dt_rank
         self.d_state = d_state
 
-        self.in_proj = nn.Linear(d_input, d_model * 2, bias=bias)
+        self.in_proj = nn.Linear(input_dim, d_model * 2, bias=bias)
 
         # x_proj takes in `x` and outputs the input-specific Δ, B, C
         self.x_proj = nn.Linear(d_model, dt_rank + d_state * 2, bias=False)
@@ -41,8 +41,8 @@ class MinimalMamba(nn.Module):
         A = repeat(torch.arange(1, d_state + 1), "n -> d n", d=d_model)
         self.A_log = nn.Parameter(torch.log(A))
         self.D = nn.Parameter(torch.ones(d_model))
-        self.out_proj = nn.Linear(d_model, d_output, bias=bias)
-        self.norm = MambaRMSNorm(d_input)
+        self.out_proj = nn.Linear(d_model, input_dim, bias=bias)
+        self.norm = MambaRMSNorm(input_dim)
         self.norm_f = MambaRMSNorm(d_model)
 
     def forward(self, x):
