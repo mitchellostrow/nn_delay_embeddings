@@ -1,4 +1,4 @@
-from dysts.analysis import kaplan_yorke_dimension, corr_integral,mse_mv
+from dysts.analysis import kaplan_yorke_dimension, corr_integral, mse_mv
 from dysts.analysis import sample_initial_conditions
 from dysts.analysis import calculate_lyapunov_exponent
 import numpy as np
@@ -12,9 +12,9 @@ def mae(x, y):
 
     Parameters
     ----------
-    x : np.ndarray 
+    x : np.ndarray
         A multi-dimensional array.
-    y : np.ndarray 
+    y : np.ndarray
         A multi-dimensional array - must be the same size as x.
 
     Returns
@@ -25,14 +25,15 @@ def mae(x, y):
 
     return np.abs(x - y).mean()
 
+
 def mase(true_vals, pred_vals):
     """
     Compute the mean absolute scaled error between the provided data. Explicitly, this
     is the mean absolute error on the predictions scaled by the mean absolut error achieved
-    by taking the naive persistence baseline prediction, which is simply the value at the 
+    by taking the naive persistence baseline prediction, which is simply the value at the
     previous time step.
-    
-    true_vals : np.ndarray 
+
+    true_vals : np.ndarray
         The ground truth time series. Must be either: (1) a
         2-dimensional array of shape T x N where T is the number
         of time points and N is the number of observed dimensions
@@ -40,7 +41,7 @@ def mase(true_vals, pred_vals):
         K x T x N where K is the number of "trials" and T and N are
         as defined above.
 
-    pred_vals : np.ndarray 
+    pred_vals : np.ndarray
         The predicted time series. Must be of the same shape as true_vals.
 
     Returns
@@ -51,10 +52,11 @@ def mase(true_vals, pred_vals):
 
     if true_vals.ndim == 2:
         persistence_baseline = mae(true_vals[:-1], true_vals[1:])
-    else: # true_vals.ndim == 3
+    else:  # true_vals.ndim == 3
         persistence_baseline = mae(true_vals[:, :-1], true_vals[:, 1:])
-    
+
     return mae(true_vals, pred_vals) / persistence_baseline
+
 
 def mse(x, y):
     """
@@ -62,9 +64,9 @@ def mse(x, y):
 
     Parameters
     ----------
-    x : np.ndarray 
+    x : np.ndarray
         A multi-dimensional array.
-    y : np.ndarray 
+    y : np.ndarray
         A multi-dimensional array - must be the same size as x.
 
     Returns
@@ -73,14 +75,15 @@ def mse(x, y):
         The mean squared error between the provided arrays.
     """
 
-    return ((x - y)**2).mean()
+    return ((x - y) ** 2).mean()
+
 
 def r2(true_vals, pred_vals):
     """
     Compute the R-squared value between two sets of data. For arrays with multiple observed dimensions,
     the R-squared is computed separately for each dimension, and then averaged.
-    
-    true_vals : np.ndarray 
+
+    true_vals : np.ndarray
         The ground truth time series. Must be either: (1) a
         2-dimensional array of shape T x N where T is the number
         of time points and N is the number of observed dimensions
@@ -88,7 +91,7 @@ def r2(true_vals, pred_vals):
         K x T x N where K is the number of "trials" and T and N are
         as defined above.
 
-    pred_vals : np.ndarray 
+    pred_vals : np.ndarray
         The predicted time series. Must be of the same shape as true_vals.
 
     Returns
@@ -100,19 +103,20 @@ def r2(true_vals, pred_vals):
     if true_vals.ndim == 3:
         true_vals = true_vals.reshape(-1, true_vals.shape[-1])
         pred_vals = pred_vals.reshape(-1, pred_vals.shape[-1])
-    
-    SS_res = np.sum((true_vals - pred_vals)**2, dim=0)
-    SS_tot = np.sum((true_vals - np.mean(true_vals, dim=0))**2, dim=0)
+
+    SS_res = np.sum((true_vals - pred_vals) ** 2, dim=0)
+    SS_tot = np.sum((true_vals - np.mean(true_vals, dim=0)) ** 2, dim=0)
 
     r2_vals = 1 - SS_res / SS_tot
     return np.mean(r2_vals)
+
 
 def correl(x, y):
     """
     Compute the correlation between two sets of data. For arrays with multiple observed dimensions,
     the correlation is computed separately for each dimension, and then averaged.
-    
-    x : np.ndarray 
+
+    x : np.ndarray
         A multi-dimensional array. Must be either: (1) a
         2-dimensional array of shape T x N where T is the number
         of time points and N is the number of observed dimensions
@@ -120,7 +124,7 @@ def correl(x, y):
         K x T x N where K is the number of "trials" and T and N are
         as defined above.
 
-    y : np.ndarray 
+    y : np.ndarray
         A multi-dimensional array. Must be of the same shape as x.
 
     Returns
@@ -132,27 +136,28 @@ def correl(x, y):
     if x.ndim == 3:
         x = x.reshape(-1, x.shape[-1])
         y = y.reshape(-1, y.shape[-1])
-        
+
     correls = np.zeros(x.shape[-1])
     for dim in range(x.shape[-1]):
         correls[dim] = np.corrcoef(np.vstack((x[:, dim], y[:, dim])))[0, 1]
 
     return correls.mean()
 
+
 def aic(x, y, rank, norm=True):
     """
     Compute the Akaike information criterion (AIC) for the provided arrays. AIC attempts to
     balance a models prediction quality with the number of parameters used in the model.
-    
-    x : np.ndarray 
+
+    x : np.ndarray
         A multi-dimensional array.
 
-    y : np.ndarray 
+    y : np.ndarray
         A multi-dimensional array. Must be of the same shape as x.
 
     rank : int
         The rank of the HAVOK model used for prediction.
-    
+
     norm : bool
         If True, normalize the AIC by the number of data points in the arrays. Defaults
         to True.
@@ -164,26 +169,28 @@ def aic(x, y, rank, norm=True):
     """
 
     N = np.prod(x.shape)
-    AIC = (N*np.log(((x - y)**2).sum()/N) + 2*(rank*rank + 1))
+    AIC = N * np.log(((x - y) ** 2).sum() / N) + 2 * (rank * rank + 1)
 
     if norm:
         AIC /= N
 
     return AIC
 
-def log_mse(x,y,norm=True):
+
+def log_mse(x, y, norm=True):
 
     N = np.prod(x.shape)
-    logmse = (N*np.log(((x - y)**2).sum()/N))
+    logmse = N * np.log(((x - y) ** 2).sum() / N)
     if norm:
         logmse /= N
     return logmse
 
+
 def compute_all_pred_stats(true_vals, pred_vals, rank, norm=True):
     """
     Compute all statistics and put them in a dictionary.
-    
-    true_vals : np.ndarray 
+
+    true_vals : np.ndarray
         The ground truth time series. Must be either: (1) a
         2-dimensional array of shape T x N where T is the number
         of time points and N is the number of observed dimensions
@@ -191,12 +198,12 @@ def compute_all_pred_stats(true_vals, pred_vals, rank, norm=True):
         K x T x N where K is the number of "trials" and T and N are
         as defined above.
 
-    pred_vals : np.ndarray 
+    pred_vals : np.ndarray
         The predicted time series. Must be of the same shape as true_vals.
 
     rank : int
         The rank of the HAVOK model used for prediction.
-    
+
     norm : bool
         If True, normalize the AIC by the number of data points in the arrays. Defaults
         to True.
@@ -213,34 +220,44 @@ def compute_all_pred_stats(true_vals, pred_vals, rank, norm=True):
         "R2": r2(true_vals, pred_vals),
         "Correl": correl(true_vals, pred_vals),
         "AIC": aic(true_vals, pred_vals, rank, norm=norm),
-        "logMSE": log_mse(true_vals,pred_vals,norm=norm)
+        "logMSE": log_mse(true_vals, pred_vals, norm=norm),
     }
 
-def calc_lyap(traj1,traj2,eps_max,tvals):
+
+def calc_lyap(traj1, traj2, eps_max, tvals):
     separation = np.linalg.norm(traj1 - traj2, axis=1) / np.linalg.norm(traj1, axis=1)
     cutoff_index = np.where(separation < eps_max)[0][-1]
     traj1 = traj1[:cutoff_index]
     traj2 = traj2[:cutoff_index]
     lyap = calculate_lyapunov_exponent(traj1, traj2, dt=np.median(np.diff(tvals)))
     return lyap, cutoff_index
-    
-def get_flattened_hidden(model,inp):
-    h1 = model(inp)[1].detach().numpy()[0] 
-    #first 1 is to read out hidden state only, second 0 is to read out the first trajectory in the batch 
+
+
+def get_flattened_hidden(model, inp):
+    h1 = model(inp)[1].detach().numpy()[0]
+    # first 1 is to read out hidden state only, second 0 is to read out the first trajectory in the batch
     if h1.ndim == 4:
-        #flatten the last 2 dims
-        h1 = h1.reshape(h1.shape[0],h1.shape[1],-1)
+        # flatten the last 2 dims
+        h1 = h1.reshape(h1.shape[0], h1.shape[1], -1)
     return h1
-    
-def compute_LE_model(model, eq,obs_fxn=lambda x: x[:,0:1],
-                     rtol=1e-3, atol=1e-10, n_samples=1000, traj_length=5000):
-    #model is the neural network
-    #eq is the attractor
-    #obs_fxn is the function that extracts the observed data to be input into the model
+
+
+def compute_LE_model(
+    model,
+    eq,
+    obs_fxn=lambda x: x[:, 0:1],
+    rtol=1e-3,
+    atol=1e-10,
+    n_samples=1000,
+    traj_length=5000,
+):
+    # model is the neural network
+    # eq is the attractor
+    # obs_fxn is the function that extracts the observed data to be input into the model
 
     all_ic = sample_initial_conditions(
-        eq, 
-        n_samples, 
+        eq,
+        n_samples,
         traj_length=max(traj_length, n_samples),
         pts_per_period=15,
     )
@@ -249,55 +266,61 @@ def compute_LE_model(model, eq,obs_fxn=lambda x: x[:,0:1],
     eps_max = rtol
     all_lyap_eq = []
     all_cutoffs_eq = []
-    #same thing but for the NN
+    # same thing but for the NN
     all_lyap_model = []
     all_cutoffs_model = []
     traj1_tot = []
     traj2_tot = []
-    for compute in ["attractor","model"]:
+    for compute in ["attractor", "model"]:
         for ind, ic in enumerate(all_ic):
             np.random.seed(ind)
             eq.random_state = ind
-            eq.ic = ic    
+            eq.ic = ic
             tvals, traj1 = eq.make_trajectory(
-                traj_length, resample=True, return_times=True,
-                )
+                traj_length,
+                resample=True,
+                return_times=True,
+            )
 
             traj1_tot.append(deepcopy(traj1))
-            
+
             if compute == "attractor":
                 eq.ic = ic
-                eq.ic += eps_attractor * np.random.random(eq.ic.shape) 
-                #*= (1 + eps_attractor * (np.random.random(eq.ic.shape) - 0.5))
+                eq.ic += eps_attractor * np.random.random(eq.ic.shape)
+                # *= (1 + eps_attractor * (np.random.random(eq.ic.shape) - 0.5))
                 tvals, traj2 = eq.make_trajectory(
-                    traj_length, resample=True, return_times=True,
-                    )
+                    traj_length,
+                    resample=True,
+                    return_times=True,
+                )
 
                 traj2_tot.append(deepcopy(traj2))
 
-                lyap, cutoff_index = calc_lyap(traj1,traj2,eps_max,tvals)
+                lyap, cutoff_index = calc_lyap(traj1, traj2, eps_max, tvals)
                 all_cutoffs_eq.append(cutoff_index)
                 all_lyap_eq.append(lyap)
 
             else:
                 eq.ic = ic
-                #perturb the initial conditions by a larger amount for the model
-                eq.ic += eps_model * np.random.random(eq.ic.shape) 
+                # perturb the initial conditions by a larger amount for the model
+                eq.ic += eps_model * np.random.random(eq.ic.shape)
 
                 # eq.ic *= (1 + eps_model * (np.random.random(eq.ic.shape) - 0.5))
                 tvals, traj2 = eq.make_trajectory(
-                    traj_length, resample=True, return_times=True,
-                    )
-                #next, pass these through the model
+                    traj_length,
+                    resample=True,
+                    return_times=True,
+                )
+                # next, pass these through the model
                 traj1_x = obs_fxn(traj1)
                 traj2_x = obs_fxn(traj2)
-                traj1_x = torch.tensor(traj1_x).float().reshape(1,-1,1)
-                traj2_x = torch.tensor(traj2_x).float().reshape(1,-1,1)
+                traj1_x = torch.tensor(traj1_x).float().reshape(1, -1, 1)
+                traj2_x = torch.tensor(traj2_x).float().reshape(1, -1, 1)
 
-                h1 = get_flattened_hidden(model,traj1_x)
-                h2 = get_flattened_hidden(model,traj2_x)
+                h1 = get_flattened_hidden(model, traj1_x)
+                h2 = get_flattened_hidden(model, traj2_x)
 
-                lyap, cutoff_index = calc_lyap(h1,h2,eps_max * 1e3,tvals)
+                lyap, cutoff_index = calc_lyap(h1, h2, eps_max * 1e3, tvals)
                 all_lyap_model.append(lyap)
                 all_cutoffs_model.append(cutoff_index)
 
@@ -305,39 +328,47 @@ def compute_LE_model(model, eq,obs_fxn=lambda x: x[:,0:1],
     all_cutoffs_eq = np.array(all_cutoffs_eq)
     all_lyap_model = np.array(all_lyap_model)
     all_cutoffs_model = np.array(all_cutoffs_model)
-    print("lyap eq",all_lyap_eq)
-    print("lyap model",all_lyap_model)
-    return all_lyap_eq, all_cutoffs_eq, all_lyap_model, all_cutoffs_model, traj1_tot, traj2_tot
+    print("lyap eq", all_lyap_eq)
+    print("lyap model", all_lyap_model)
+    return (
+        all_lyap_eq,
+        all_cutoffs_eq,
+        all_lyap_model,
+        all_cutoffs_model,
+        traj1_tot,
+        traj2_tot,
+    )
 
 
-def compute_dynamic_quantities(model,attractor,traj_length,ntrajs):
-    #basically what we're going to do is sampple a bunch of trajectories from the attractor
-    #compute dynamical quantities on them, then pass the trajectories through the model
-    #extract the hidden states on it, and then compute the same dynamical quantities on the hidden states
+def compute_dynamic_quantities(model, attractor, traj_length, ntrajs):
+    # basically what we're going to do is sampple a bunch of trajectories from the attractor
+    # compute dynamical quantities on them, then pass the trajectories through the model
+    # extract the hidden states on it, and then compute the same dynamical quantities on the hidden states
 
     print("getting lyapunov exponents")
 
-    attractor_lyap, _ , model_lyap, _ , traj1_tot, traj2_tot = compute_LE_model(
+    attractor_lyap, _, model_lyap, _, traj1_tot, traj2_tot = compute_LE_model(
         model, attractor, traj_length=traj_length, n_samples=ntrajs
     )
 
     print("calculating KY dim")
 
-    #calculate the kaplan-yorke dim of attractor and model lyaps
+    # calculate the kaplan-yorke dim of attractor and model lyaps
     attractor_ky = kaplan_yorke_dimension(attractor_lyap)
     model_ky = kaplan_yorke_dimension(model_lyap)
 
-
     print("calculating correlation integral")
-    #for correlation integral, we want to generate 1 really long trajectory
-    #and then pass it through the model
-    #then we'll calculate the correlation integral on the hidden states
-    #and the observed data
+    # for correlation integral, we want to generate 1 really long trajectory
+    # and then pass it through the model
+    # then we'll calculate the correlation integral on the hidden states
+    # and the observed data
     tvals, traj1 = attractor.make_trajectory(
-            traj_length*2, resample=False, return_times=True,
-            ) 
+        traj_length * 2,
+        resample=False,
+        return_times=True,
+    )
 
-    traj1_x = torch.tensor(traj1).float().reshape(1,-1,1)
+    traj1_x = torch.tensor(traj1).float().reshape(1, -1, 1)
     h1 = model(traj1_x)[1].detach().numpy()[0]
     attractor_corr_int = corr_integral(traj1)
 
@@ -347,23 +378,18 @@ def compute_dynamic_quantities(model,attractor,traj_length,ntrajs):
     attractor_multiscale_entropy = mse_mv(traj1)
     model_multiscale_entropy = mse_mv(h1)
 
-    #put each set of stats into a separate dictionary
+    # put each set of stats into a separate dictionary
     attractor_stats = {
         "lyap": attractor_lyap,
         "ky": attractor_ky,
         "corr_int": attractor_corr_int,
-        "multiscale_entropy": attractor_multiscale_entropy
+        "multiscale_entropy": attractor_multiscale_entropy,
     }
     model_stats = {
         "lyap": model_lyap,
         "ky": model_ky,
         "corr_int": model_corr_int,
-        "multiscale_entropy": model_multiscale_entropy
+        "multiscale_entropy": model_multiscale_entropy,
     }
 
     return attractor_stats, model_stats
-
-    
-
-
-
