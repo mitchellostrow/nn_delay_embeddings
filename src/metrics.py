@@ -1,4 +1,10 @@
-from dysts.analysis import kaplan_yorke_dimension, corr_integral, mse_mv
+from dysts.analysis import kaplan_yorke_dimension, mse_mv
+try:
+    from dysts.analysis import corr_integral
+    no_corr = False
+except ImportError:
+    no_corr = True
+
 from dysts.analysis import sample_initial_conditions
 from dysts.analysis import calculate_lyapunov_exponent
 import numpy as np
@@ -236,11 +242,10 @@ def calc_lyap(traj1, traj2, eps_max, tvals):
 def get_flattened_hidden(model, inp):
     h1 = model(inp)[1].detach().numpy()[0]
     # first 1 is to read out hidden state only, second 0 is to read out the first trajectory in the batch
-    if h1.ndim == 4:
+    if h1.ndim == 3:
         # flatten the last 2 dims
-        h1 = h1.reshape(h1.shape[0], h1.shape[1], -1)
+        h1 = h1.reshape(h1.shape[0], -1)
     return h1
-
 
 def compute_LE_model(
     model,
@@ -319,7 +324,6 @@ def compute_LE_model(
 
                 h1 = get_flattened_hidden(model, traj1_x)
                 h2 = get_flattened_hidden(model, traj2_x)
-
                 lyap, cutoff_index = calc_lyap(h1, h2, eps_max * 1e3, tvals)
                 all_lyap_model.append(lyap)
                 all_cutoffs_model.append(cutoff_index)
@@ -339,7 +343,6 @@ def compute_LE_model(
         traj2_tot,
     )
 
-
 def compute_dynamic_quantities(model, attractor, traj_length, ntrajs):
     # basically what we're going to do is sampple a bunch of trajectories from the attractor
     # compute dynamical quantities on them, then pass the trajectories through the model
@@ -355,7 +358,12 @@ def compute_dynamic_quantities(model, attractor, traj_length, ntrajs):
 
     # calculate the kaplan-yorke dim of attractor and model lyaps
     attractor_ky = kaplan_yorke_dimension(attractor_lyap)
-    model_ky = kaplan_yorke_dimension(model_lyap)
+    #filter nans from model_lyap, if there's nothing left skip ky dim
+    model_lyap = model_lyap[~np.isnan(model_lyap)]
+    if len(model_lyap) == 0:
+        model_ky = "nan"
+    else:
+        model_ky = kaplan_yorke_dimension(model_lyap)
 
     print("calculating correlation integral")
     # for correlation integral, we want to generate 1 really long trajectory
@@ -363,16 +371,26 @@ def compute_dynamic_quantities(model, attractor, traj_length, ntrajs):
     # then we'll calculate the correlation integral on the hidden states
     # and the observed data
     tvals, traj1 = attractor.make_trajectory(
-        traj_length * 2,
+        traj_length * 10,
         resample=False,
         return_times=True,
     )
 
     traj1_x = torch.tensor(traj1).float().reshape(1, -1, 1)
-    h1 = model(traj1_x)[1].detach().numpy()[0]
-    attractor_corr_int = corr_integral(traj1)
+    # h1 = model(traj1_x)[1].detach().numpy()[0]
+    h1 = get_flattened_hidden(model, traj1_x) 
 
-    model_corr_int = corr_integral(h1)
+    #if this is a complex float then stack dimensions
+    if h1.dtype in [np.complex64, np.complex128]:
+        h1 = np.hstack([h1.real, h1.imag])
+
+
+    if not no_corr:
+        model_corr_int = corr_integral(h1)
+        attractor_corr_int = corr_integral(traj1)
+    else:
+        model_corr_int = -1
+        attractor_corr_int = -1
 
     print("calculating multiscale entropy")
     attractor_multiscale_entropy = mse_mv(traj1)
