@@ -5,11 +5,13 @@ try:
 except ImportError:
     no_corr = True
 
-from dysts.analysis import sample_initial_conditions
-from dysts.analysis import calculate_lyapunov_exponent
+from dysts.analysis import sample_initial_conditions,calculate_lyapunov_exponent,gpdistance
+
 import numpy as np
 import torch
 from copy import deepcopy
+from sklearn.neighbors import NearestNeighbors
+from sklearn.linear_model import ElasticNetCV,RidgeCV
 
 
 def mae(x, y):
@@ -343,7 +345,7 @@ def compute_LE_model(
         traj2_tot,
     )
 
-def compute_dynamic_quantities(model, attractor, traj_length, ntrajs):
+def compute_dynamic_quantities(model, attractor, traj_length, ntrajs,use_mve=False):
     # basically what we're going to do is sampple a bunch of trajectories from the attractor
     # compute dynamical quantities on them, then pass the trajectories through the model
     # extract the hidden states on it, and then compute the same dynamical quantities on the hidden states
@@ -392,9 +394,10 @@ def compute_dynamic_quantities(model, attractor, traj_length, ntrajs):
         model_corr_int = -1
         attractor_corr_int = -1
 
-    print("calculating multiscale entropy")
-    attractor_multiscale_entropy = mse_mv(traj1)
-    model_multiscale_entropy = mse_mv(h1)
+    if use_mve:
+        print("calculating multiscale entropy")
+        attractor_multiscale_entropy = mse_mv(traj1)
+        model_multiscale_entropy = mse_mv(h1)
 
     # put each set of stats into a separate dictionary
     attractor_stats = {
@@ -411,3 +414,57 @@ def compute_dynamic_quantities(model, attractor, traj_length, ntrajs):
     }
 
     return attractor_stats, model_stats
+
+
+def neighbors_comparison(true, embedded, n_neighbors=5):
+    # nearest neighbors in the original space
+    nn_orig = NearestNeighbors(n_neighbors=n_neighbors).fit(true)
+    distances_orig, indices_orig = nn_orig.kneighbors(true)
+
+    # nearest neighbors in the embedded space
+    nn_embed = NearestNeighbors(n_neighbors=n_neighbors).fit(embedded)
+    distances_embed, indices_embed = nn_embed.kneighbors(embedded)
+
+    # compare neighborhoods
+    jaccard_indices = [
+        len(set(indices_orig[i]).intersection(indices_embed[i])) / n_neighbors
+        for i in range(len(true))
+    ]
+
+    # Compare distance correlations
+    correlation_coefficients = [
+        np.corrcoef(distances_orig[i], distances_embed[i])[0, 1]
+        for i in range(len(true))
+    ]
+
+    return np.mean(jaccard_indices), np.mean(correlation_coefficients)
+
+def gp_diff_asym(true,embedded,standardize=True):
+    #generalization of dysts gpdistance for comparison of trajecotries
+    #but generalized to different dimensionalities and multiple batches (avged over)
+    #different dimensionalities -> register (map lower dim to higher dim?) #TODO: check this
+    b1,t1,d1 = true.shape
+    b2,t2,d2 = embedded.shape
+    assert b1 == b2
+    assert t1 == t2
+    
+    #pad the smaller one with zeros
+    if d1 > d2:
+        return gp_diff_asym(embedded,true,standardize) #gpdist is symmetric anyway
+    # elif d1 == d2:
+    #     register = False
+    # else:
+    register = True #maybe always register for now? this is basically just to align
+
+    gpdists = np.zeros(b1)
+    for i in range(b1):
+        gpdists[i] = gpdistance(true,embedded,standardize,register)
+
+    return gpdists
+
+def predict_hidden_dims(true,embedded,dim_observed,**model_kwargs):
+    pass
+    
+
+    
+    
