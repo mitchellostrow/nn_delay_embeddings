@@ -1,7 +1,6 @@
 name: Mamba
 kwargs:
   d_model: 10
-  d_input: 1
-  d_output: 1
+  input_dim: 1
   dt_rank: 10
   d_state: 10

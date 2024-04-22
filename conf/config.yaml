@@ -1,5 +1,5 @@
 defaults:
-  - model: mamba
+  - model: s4
   # - slurm: default
   - _self_
 
@@ -10,8 +10,8 @@ attractor:
   dt: None
   observed_noise: 0.00
   dim_observed: 0
-  resample: True
-  timescale: 0.01 #if resample is False, we need to pick this. TODO: implement
+  resample: False
+  # timescale: 0.01 #if resample is False, we need to pick this. TODO: implement
 
 data:
   time: 100
@@ -25,9 +25,10 @@ train:
   epochs: 200
   loss: nn.MSELoss
   nsteps: [1] #train on nstep prediction
+  eval_nsteps: 10
 
 eval: 
-  metrics: [
+  metrics: [ #TODO: use this
     compute_all_pred_stats,
     compute_dynamic_quantities,
     neighbors_comparison,
@@ -36,10 +37,10 @@ eval:
     dsa
     ]
   neighbors_comparison:
-    n_neighbors: 10
+    n_neighbors: 100
   dyn_quants:
-    traj_length: 500
-    ntrajs: 100
+    traj_length: 1000
+    ntrajs: 10
     rtol: 1e-3
     atol: 1e-10
   predict_hiddens:
@@ -52,6 +53,7 @@ eval:
     delay_interval: 1
     lr: 5e-3
     iters: 1500
+    device: cuda
 
 
     

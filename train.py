@@ -21,7 +21,10 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 def gen_data(cfg):
     model = eval(cfg.attractor.name)()
-    if cfg.attractor.dt is not None:
+    if cfg.attractor.dt is not None and cfg.attractor.dt not in {"none", "None"}:
+        import pdb
+
+        pdb.set_trace()
         model.dt = cfg.attractor.dt
     nsamples = cfg.data.nsamples
     time = cfg.data.time
@@ -99,17 +102,7 @@ def train(
                     y_pred, hiddens = model(x)
                     # run the evals here
                     # need to get the full state space of x
-                    eval_embedding(
-                        attractor,
-                        model,
-                        data,
-                        x,
-                        y,
-                        y_pred,
-                        hiddens,
-                        cfg.atttractor.dim_observed,
-                        cfg.eval,
-                    )
+                    eval_embedding(attractor, model, data[:,:-1], x, y, y_pred, hiddens, cfg)
 
                     loss = loss_fn(y_pred, y)
                     val_loss += loss.item()

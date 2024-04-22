@@ -1,7 +1,6 @@
 name: RNN
 kwargs:
   input_dim: 1
-  output_dim: 1
   architecture: LSTM
   d_model: 50
   activation: relu

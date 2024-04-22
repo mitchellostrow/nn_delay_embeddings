@@ -1,10 +1,9 @@
-name: S4
+name: lru
 kwargs:
   input_dim: 1
   d_model: 10
-  d_state: 100
+  d_state: 10
   dropout: 0.0
-  prenorm: False
   expansion: 4
-  noC: False
-  seed: 10
+  rmin: 0.8
+  rmax: 0.99
