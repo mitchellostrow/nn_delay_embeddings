@@ -13,8 +13,7 @@ from omegaconf import DictConfig
 from torch.utils.data import DataLoader
 from torch.optim import AdamW, Adam, SGD
 from src.models import *
-
-# from metrics import compute_all_metrics
+from evals import eval_embedding
 
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -22,6 +21,8 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 def gen_data(cfg):
     model = eval(cfg.attractor.name)()
+    if cfg.attractor.dt is not None:
+        model.dt = cfg.attractor.dt
     nsamples = cfg.data.nsamples
     time = cfg.data.time
     dim_observed = cfg.attractor.dim_observed
@@ -36,12 +37,23 @@ def gen_data(cfg):
     data_used = torch.tensor(data).float()[:, :, dim_observed : dim_observed + 1]
     # print(data.shape, data_used.shape)
     loader = DataLoader(data_used, batch_size=cfg.data.batch_size, shuffle=True)
-    return loader, data
+    return model, loader, data
 
 
-def train(model, train_set, val_set, epochs, optimizer, loss_fn, device, nsteps=1):
+def train(
+    cfg,
+    attractor,
+    model,
+    train_set,
+    val_set,
+    epochs,
+    optimizer,
+    loss_fn,
+    device,
+    nsteps=1,
+):
     """
-    Trains a model on a dataset
+    Trains a model on a dataset and evaluates it with the relevant metrics
     """
     if isinstance(nsteps, int):
         nsteps = [nsteps]
@@ -82,7 +94,10 @@ def train(model, train_set, val_set, epochs, optimizer, loss_fn, device, nsteps=
                     y = data[:, 1:]
                     x = x.to(device)
                     y = y.to(device)
-                    y_pred, _ = model(x)
+                    y_pred, hiddens = model(x)
+                    # run the evals here
+                    eval_embedding(attractor, model, x, y, y_pred, hiddens, cfg.eval)
+
                     loss = loss_fn(y_pred, y)
                     val_loss += loss.item()
                 val_losses.append(val_loss / len(val_set))
@@ -109,8 +124,8 @@ def main(cfg: DictConfig):
     wandb.watch(model, log_freq=100)
 
     # generate the data
-    train_loader, train_dat = gen_data(cfg)
-    val_loader, val_dat = gen_data(cfg)
+    attractor, train_loader, train_dat = gen_data(cfg)
+    _, val_loader, val_dat = gen_data(cfg)
 
     # train the model
     optimizer = eval(cfg.train.optimizer)
@@ -120,6 +135,8 @@ def main(cfg: DictConfig):
 
     loss = eval(cfg.train.loss)()
     model, train_loss, val_loss = train(
+        cfg,
+        attractor,
         model,
         train_loader,
         val_loader,
@@ -135,8 +152,6 @@ def main(cfg: DictConfig):
 
     # run metric evaluation
     model.eval()
-
-    # metrics = compute_all_metrics(model,val_dat,cfg.metrics.dyn,cfg.metrics.pred)
 
     # log the metrics
     # wandb.log(metrics)

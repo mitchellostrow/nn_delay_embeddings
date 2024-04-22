@@ -7,6 +7,7 @@ defaults:
 attractor:
   name: Lorenz
   driven_noise: 0.0
+  dt: None
   observed_noise: 0.00
   dim_observed: 0
   resample: True
@@ -25,6 +26,34 @@ train:
   loss: nn.MSELoss
   nsteps: [1] #train on nstep prediction
 
-metrics: 
-  dyn: [KY,correl,autocorrel,MI,maxLE]
-  pred: [MSE, MASE]
+eval: 
+  metrics: [
+    compute_all_pred_stats,
+    compute_dynamic_quantities,
+    neighbors_comparison,
+    gp_diff_asym,
+    predict_hidden_dims
+    dsa
+    ]
+  neighbors_comparison:
+    n_neighbors: 10
+  dyn_quants:
+    traj_length: 500
+    ntrajs: 100
+    rtol: 1e-3
+    atol: 1e-10
+  predict_hiddens:
+    model_kwargs:
+      l1_ratio: 0.5 
+      alphas: [1e-3, 1e-2, 1e-1, 1, 10 ]
+  dsa:
+    n_delays: 10
+    rank: 40
+    delay_interval: 1
+    lr: 5e-3
+    iters: 1500
+
+
+    
+
+
