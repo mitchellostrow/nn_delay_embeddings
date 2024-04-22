@@ -25,18 +25,16 @@ def gen_data(cfg):
         model.dt = cfg.attractor.dt
     nsamples = cfg.data.nsamples
     time = cfg.data.time
-    dim_observed = cfg.attractor.dim_observed
 
     model.ic = model.ic[None, :] * np.random.random(nsamples)[:, None]
     data = model.make_trajectory(
         time, resample=cfg.attractor.resample, noise=cfg.attractor.driven_noise
     )
-
     data += np.random.randn(*data.shape) * cfg.attractor.observed_noise
+    data = torch.tensor(data).float()
 
-    data_used = torch.tensor(data).float()[:, :, dim_observed : dim_observed + 1]
     # print(data.shape, data_used.shape)
-    loader = DataLoader(data_used, batch_size=cfg.data.batch_size, shuffle=True)
+    loader = DataLoader(data, batch_size=cfg.data.batch_size, shuffle=True)
     return model, loader, data
 
 
@@ -59,6 +57,7 @@ def train(
         nsteps = [nsteps]
 
     model.to(device)
+    dim_observed = cfg.attractor.dim_observed
     train_loss = []
     val_losses = []
     for n in nsteps:
@@ -66,6 +65,7 @@ def train(
             model.train()
             total_loss = 0
             for i, data in enumerate(train_set):
+                data = data[:, :, dim_observed : dim_observed + 1]
 
                 x = data[:, :-n]
                 y = data[:, n:]
@@ -86,17 +86,30 @@ def train(
             # log on wandb instead
             wandb.log({"train_loss": total_loss / len(train_set)})
 
-            if epoch % 10 == 0:
+            if epoch % cfg.train.eval_nsteps == 0:
                 model.eval()
                 val_loss = 0
                 for i, data in enumerate(val_set):
-                    x = data[:, :-1]
-                    y = data[:, 1:]
+                    obs_data = data[:, :, dim_observed : dim_observed + 1]
+
+                    x = obs_data[:, :-1]
+                    y = obs_data[:, 1:]
                     x = x.to(device)
                     y = y.to(device)
                     y_pred, hiddens = model(x)
                     # run the evals here
-                    eval_embedding(attractor, model, x, y, y_pred, hiddens, cfg.eval)
+                    # need to get the full state space of x
+                    eval_embedding(
+                        attractor,
+                        model,
+                        data,
+                        x,
+                        y,
+                        y_pred,
+                        hiddens,
+                        cfg.atttractor.dim_observed,
+                        cfg.eval,
+                    )
 
                     loss = loss_fn(y_pred, y)
                     val_loss += loss.item()

@@ -494,4 +494,4 @@ def predict_hidden_dims(
 
     model.fit(X_train, y_train)
 
-    return model.score(X_test, y_test)
+    return model.score(X_train, y_train), model.score(X_test, y_test)
