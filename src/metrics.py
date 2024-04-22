@@ -1,17 +1,24 @@
 from dysts.analysis import kaplan_yorke_dimension, mse_mv
+
 try:
     from dysts.analysis import corr_integral
+
     no_corr = False
 except ImportError:
     no_corr = True
 
-from dysts.analysis import sample_initial_conditions,calculate_lyapunov_exponent,gpdistance
+from dysts.analysis import (
+    sample_initial_conditions,
+    calculate_lyapunov_exponent,
+    gpdistance,
+)
 
 import numpy as np
 import torch
 from copy import deepcopy
 from sklearn.neighbors import NearestNeighbors
-from sklearn.linear_model import ElasticNetCV,RidgeCV
+from sklearn.linear_model import ElasticNetCV, RidgeCV
+from sklearn.model_selection import train_test_split
 
 
 def mae(x, y):
@@ -249,6 +256,7 @@ def get_flattened_hidden(model, inp):
         h1 = h1.reshape(h1.shape[0], -1)
     return h1
 
+
 def compute_LE_model(
     model,
     eq,
@@ -345,7 +353,8 @@ def compute_LE_model(
         traj2_tot,
     )
 
-def compute_dynamic_quantities(model, attractor, traj_length, ntrajs,use_mve=False):
+
+def compute_dynamic_quantities(model, attractor, traj_length, ntrajs, use_mve=False):
     # basically what we're going to do is sampple a bunch of trajectories from the attractor
     # compute dynamical quantities on them, then pass the trajectories through the model
     # extract the hidden states on it, and then compute the same dynamical quantities on the hidden states
@@ -360,7 +369,7 @@ def compute_dynamic_quantities(model, attractor, traj_length, ntrajs,use_mve=Fal
 
     # calculate the kaplan-yorke dim of attractor and model lyaps
     attractor_ky = kaplan_yorke_dimension(attractor_lyap)
-    #filter nans from model_lyap, if there's nothing left skip ky dim
+    # filter nans from model_lyap, if there's nothing left skip ky dim
     model_lyap = model_lyap[~np.isnan(model_lyap)]
     if len(model_lyap) == 0:
         model_ky = "nan"
@@ -380,12 +389,11 @@ def compute_dynamic_quantities(model, attractor, traj_length, ntrajs,use_mve=Fal
 
     traj1_x = torch.tensor(traj1).float().reshape(1, -1, 1)
     # h1 = model(traj1_x)[1].detach().numpy()[0]
-    h1 = get_flattened_hidden(model, traj1_x) 
+    h1 = get_flattened_hidden(model, traj1_x)
 
-    #if this is a complex float then stack dimensions
+    # if this is a complex float then stack dimensions
     if h1.dtype in [np.complex64, np.complex128]:
         h1 = np.hstack([h1.real, h1.imag])
-
 
     if not no_corr:
         model_corr_int = corr_integral(h1)
@@ -439,32 +447,51 @@ def neighbors_comparison(true, embedded, n_neighbors=5):
 
     return np.mean(jaccard_indices), np.mean(correlation_coefficients)
 
-def gp_diff_asym(true,embedded,standardize=True):
-    #generalization of dysts gpdistance for comparison of trajecotries
-    #but generalized to different dimensionalities and multiple batches (avged over)
-    #different dimensionalities -> register (map lower dim to higher dim?) #TODO: check this
-    b1,t1,d1 = true.shape
-    b2,t2,d2 = embedded.shape
+
+def gp_diff_asym(true, embedded, standardize=True):
+    # generalization of dysts gpdistance for comparison of trajecotries
+    # but generalized to different dimensionalities and multiple batches (avged over)
+    # different dimensionalities -> register (map lower dim to higher dim?) #TODO: check this
+    b1, t1, d1 = true.shape
+    b2, t2, d2 = embedded.shape
     assert b1 == b2
     assert t1 == t2
-    
-    #pad the smaller one with zeros
+
+    # pad the smaller one with zeros
     if d1 > d2:
-        return gp_diff_asym(embedded,true,standardize) #gpdist is symmetric anyway
+        return gp_diff_asym(embedded, true, standardize)  # gpdist is symmetric anyway
     # elif d1 == d2:
     #     register = False
     # else:
-    register = True #maybe always register for now? this is basically just to align
+    register = True  # maybe always register for now? this is basically just to align
 
     gpdists = np.zeros(b1)
     for i in range(b1):
-        gpdists[i] = gpdistance(true,embedded,standardize,register)
+        gpdists[i] = gpdistance(true, embedded, standardize, register)
 
     return gpdists
 
-def predict_hidden_dims(true,embedded,dim_observed,**model_kwargs):
-    pass
-    
 
-    
-    
+def predict_hidden_dims(
+    true, embedded, dim_observed, model=ElasticNetCV, **model_kwargs
+):
+    # given the true full state and the embedding from the net, try and predict
+    # the unobserved states of the model
+    d_true = true.shape[-1]
+    hidden_true = [i for i in range(d_true) if i != dim_observed]
+
+    hidden_true = true[..., hidden_true]
+
+    model = model(**model_kwargs)
+
+    if hidden_true.ndim == 3 and embedded.ndim == 3:
+        hidden_true = hidden_true.reshape(-1, hidden_true.shape[-1])
+        embedded = embedded.reshape(-1, embedded.shape[-1])
+    # split embedded into train and test
+    X_train, X_test, y_train, y_test = train_test_split(
+        embedded, hidden_true, test_size=0.2
+    )
+
+    model.fit(X_train, y_train)
+
+    return model.score(X_test, y_test)

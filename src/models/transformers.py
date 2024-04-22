@@ -121,7 +121,7 @@ class GPT(nn.Module):
             # loop through the sequence, iterating by context length chunks
             # then concatenate
             return self.forward_long(x)
-  
+
         # forward the model itself
         pos = torch.arange(0, x.size(1), dtype=torch.long, device=device)  # shape (t)
         embed = self.transformer.wte(x)  # token embeddings of shape (b, t, n_embd)
@@ -138,17 +138,19 @@ class GPT(nn.Module):
         chunks = x.size(1) // self.context_length
         outs = []
         attn_outs = []
-        pos = torch.arange(0, self.context_length, dtype=torch.long, device=device)  # shape (t)
+        pos = torch.arange(
+            0, self.context_length, dtype=torch.long, device=device
+        )  # shape (t)
         pos_emb = self.transformer.wpe(pos)  # position embeddings of shape (t, n_embd)
 
         for i in range(chunks):
-            o = x[:,i*self.context_length:(i+1)*self.context_length]
+            o = x[:, i * self.context_length : (i + 1) * self.context_length]
             embed = self.transformer.wte(o)
             o = embed + pos_emb
             o = self.transformer.h(o)
             outs.append(self.transformer.out(o))
             attn_outs.append(self.transformer.h.attn_out)
-        #stack and return
+        # stack and return
         outs = torch.cat(outs, dim=1)
         attn_outs = torch.cat(attn_outs, dim=1)
         return outs, attn_outs
