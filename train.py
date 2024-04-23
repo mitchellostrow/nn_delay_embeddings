@@ -14,6 +14,7 @@ from torch.utils.data import DataLoader
 from torch.optim import AdamW, Adam, SGD
 from src.models import *
 from evals import eval_embedding
+from tqdm import tqdm
 
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -22,9 +23,6 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 def gen_data(cfg):
     model = eval(cfg.attractor.name)()
     if cfg.attractor.dt is not None and cfg.attractor.dt not in {"none", "None"}:
-        import pdb
-
-        pdb.set_trace()
         model.dt = cfg.attractor.dt
     nsamples = cfg.data.nsamples
     time = cfg.data.time
@@ -64,7 +62,7 @@ def train(
     train_loss = []
     val_losses = []
     for n in nsteps:
-        for epoch in range(epochs):
+        for epoch in tqdm(range(epochs)):
             model.train()
             total_loss = 0
             for i, data in enumerate(train_set):
@@ -91,22 +89,23 @@ def train(
 
             if epoch % cfg.train.eval_nsteps == 0:
                 model.eval()
-                val_loss = 0
-                for i, data in enumerate(val_set):
-                    obs_data = data[:, :, dim_observed : dim_observed + 1]
+                data = next(iter(val_set))
+                obs_data = data[:, :, dim_observed : dim_observed + 1]
 
-                    x = obs_data[:, :-1]
-                    y = obs_data[:, 1:]
-                    x = x.to(device)
-                    y = y.to(device)
-                    y_pred, hiddens = model(x)
-                    # run the evals here
-                    # need to get the full state space of x
-                    eval_embedding(attractor, model, data[:,:-1], x, y, y_pred, hiddens, cfg)
+                x = obs_data[:, :-1]
+                y = obs_data[:, 1:]
+                x = x.to(device)
+                y = y.to(device)
+                y_pred, hiddens = model(x)
+                # run the evals here
+                # need to get the full state space of x
+                eval_embedding(
+                    attractor, model, data[:, :-1], x, y, y_pred, hiddens, cfg
+                )
 
-                    loss = loss_fn(y_pred, y)
-                    val_loss += loss.item()
-                val_losses.append(val_loss / len(val_set))
+                loss = loss_fn(y_pred, y)
+                val_loss = loss.item()
+                val_losses.append(val_loss)
 
                 wandb.log({"val_loss": val_loss / len(val_set)})
 
@@ -120,7 +119,7 @@ def main(cfg: DictConfig):
     model.train()
     dict_cfg = {
         **cfg.model.kwargs,
-        "name": cfg.model.name,
+        "model_name": cfg.model.name,
         **cfg.attractor,
         **cfg.data,
         **cfg.train,

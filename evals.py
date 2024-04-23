@@ -27,7 +27,7 @@ def eval_embedding(
     y_pred = y_pred.cpu().detach().numpy()
     hiddens = hiddens.cpu().detach().numpy()
     if np.iscomplex(hiddens).any():
-        hiddens = np.concatenate([hiddens.real, hiddens.imag],axis=-1)
+        hiddens = np.concatenate([hiddens.real, hiddens.imag], axis=-1)
     # evaluate all of the above metrics using the arguments in this funciton
     # and log them on wandb
     # compute dynamic quantities
@@ -59,11 +59,11 @@ def eval_embedding(
     wandb.log(dict(neighbors_overlap=overlap_neighb, neighbors_correlation=corr_neighb))
 
     # GP distance
-    if verbose:
-        print("computing grassberg-proccacia similarity")
-
-    gp_distance = gp_diff_asym(full_data, hiddens)
-    wandb.log(dict(gp_distance=gp_distance))
+    # if verbose:
+    #     print("computing grassberg-proccacia similarity")
+    # TODO: fix this and also figure out what it's for
+    # gp_distance = gp_diff_asym(full_data, hiddens)
+    # wandb.log(dict(gp_distance=gp_distance))
 
     # predict hidden dimensions
     if verbose:
@@ -83,8 +83,8 @@ def eval_embedding(
         print("computing DSA")
     # DSA
     dsa_cfg = eval_cfg.dsa
-    dsa = DSA(full_data, hiddens, **dsa_cfg)
-    score = dsa.fit_score()[0, 1]  # only 1 comparison so look at that
+    dsa = DSA(full_data, hiddens, **dict(dsa_cfg))
+    score = dsa.fit_score()  # only 1 comparison so look at that
     wandb.log(dict(dsa=score))
 
     # plot the attractor and model trajectories in top n dimensions -- with 2 plots that plot dimension i against dimension j
@@ -92,14 +92,14 @@ def eval_embedding(
     if verbose:
         print("plotting low-d trajectories")
 
-    run_plot_pca(full_data, "attractor")
+    # run_plot_pca(full_data, "attractor")
     run_plot_pca(hiddens, "model embedding")
 
 
 # flatten top 2 dimensions of full_data and hiddens, run pca
 def run_plot_pca(data, label):
     pca = PCA(n_components=4)
-    d = data.reshape(-1, full_data.shape[-1])
+    d = data.reshape(-1, data.shape[-1])
     red = pca.fit_transform(d)
     red = red.reshape(data.shape[0], data.shape[1], 4)
 
@@ -115,8 +115,4 @@ def run_plot_pca(data, label):
     plt.tight_layout()
     plt.savefig(f"{label}.pdf")
     # save in wandb
-
-    buf = io.BytesIO()
-    plt.savefig(buf, format="png")
-    buf.seek(0)
-    wandb.log({label: wandb.Image(buf)})
+    wandb.log({label: plt})
