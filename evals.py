@@ -69,7 +69,7 @@ def eval_embedding(
     if verbose:
         print("predicting hidden dimensions of attractor from embedding")
 
-    train_score, test_score = predict_hidden_dims(
+    train_score, test_score, classifier = predict_hidden_dims(
         full_data, hiddens, dim_observed, **eval_cfg.predict_hiddens.model_kwargs
     )
     wandb.log(

@@ -11,6 +11,7 @@ import hydra
 import os
 from omegaconf import DictConfig
 from torch.utils.data import DataLoader
+from torch.optim import lr_scheduler
 from torch.optim import AdamW, Adam, SGD
 from src.models import *
 from evals import eval_embedding
@@ -19,6 +20,21 @@ from tqdm import tqdm
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+class CosineWarmupScheduler(lr_scheduler._LRScheduler):
+    def __init__(self, optimizer, warmup, max_iters):
+        self.warmup = warmup
+        self.max_num_iters = max_iters
+        super().__init__(optimizer)
+
+    def get_lr(self):
+        lr_factor = self.get_lr_factor(epoch=self.last_epoch)
+        return [base_lr * lr_factor for base_lr in self.base_lrs]
+
+    def get_lr_factor(self, epoch):
+        lr_factor = 0.5 * (1 + np.cos(np.pi * epoch / self.max_num_iters))
+        if epoch <= self.warmup:
+            lr_factor *= epoch * 1.0 / self.warmup
+        return lr_factor
 
 def gen_data(cfg):
     model = eval(cfg.attractor.name)()
@@ -56,12 +72,14 @@ def train(
     """
     if isinstance(nsteps, int):
         nsteps = [nsteps]
+    if cfg.train.schedule is not None:
+        lr_scheduler = CosineWarmupScheduler(optimizer=optimizer, warmup=100, max_iters=epochs*nsteps)
 
     model.to(device)
     dim_observed = cfg.attractor.dim_observed
     train_loss = []
     val_losses = []
-    for n in nsteps:
+    for j,n in enumerate(nsteps):
         for epoch in tqdm(range(epochs)):
             model.train()
             total_loss = 0
@@ -80,14 +98,18 @@ def train(
                 loss = loss_fn(y_pred, y)
                 loss.backward()
                 optimizer.step()
+
                 total_loss += loss.item()
             train_loss.append(total_loss / len(train_set))
-
+            lr_scheduler.step()  # Step per iteration
             print(f"Epoch {epoch} Training Loss: {total_loss/len(train_set)}")
             # log on wandb instead
             wandb.log({"train_loss": total_loss / len(train_set)})
-
+            wandb.log({'lr': lr_scheduler.get_lr()[0]})
             if epoch % cfg.train.eval_nsteps == 0:
+                # save the model
+                torch.save(model.state_dict(), os.getcwd() + f"/{cfg.model.name}_{epoch*(j+1)}.pt")
+
                 model.eval()
                 data = next(iter(val_set))
                 obs_data = data[:, :, dim_observed : dim_observed + 1]
@@ -152,9 +174,7 @@ def main(cfg: DictConfig):
         nsteps=cfg.train.nsteps,
     )
 
-    # save the model
-    torch.save(model.state_dict(), os.getcwd() + f"/{cfg.model.name}.pt")
-
+ 
     # run metric evaluation
     model.eval()
 

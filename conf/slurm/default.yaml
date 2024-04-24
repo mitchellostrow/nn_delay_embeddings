@@ -9,6 +9,7 @@ hydra:
     tasks_per_node: 1
     nodes: 1
     mem_gb: 64
+    partition: normal
     # additional_parameters:
       # mail-user: ostrow@mit.edu
       # mail-type: END,FAIL,TIME_LIMIT

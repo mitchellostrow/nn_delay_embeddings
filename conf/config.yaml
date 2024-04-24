@@ -1,6 +1,6 @@
 defaults:
-  - model: lru
-  # - slurm: default
+  - model: gpt
+  - slurm: default
   - _self_
 
 
@@ -14,18 +14,19 @@ attractor:
   # timescale: 0.01 #if resample is False, we need to pick this. TODO: implement
 
 data:
-  time: 100
+  time: 1000
   nsamples: 1000
   batch_size: 32
 
 train:
   optimizer: AdamW
-  lr: 0.005
+  lr: 0.001
   weight_decay: 0.001
-  epochs: 300
+  epochs: 2000
   loss: nn.MSELoss
-  nsteps: [1,2,3,5,10] #train on nstep prediction
-  eval_nsteps: 500
+  nsteps: 1 #train on nstep prediction
+  eval_nsteps: 100
+  schedule: True
 
 eval: 
   metrics: [ #TODO: use this
@@ -37,7 +38,7 @@ eval:
     dsa
     ]
   neighbors_comparison:
-    n_neighbors: 100
+    n_neighbors: 25
   dyn_quants:
     traj_length: 1000
     ntrajs: 10
@@ -47,9 +48,11 @@ eval:
     model_kwargs:
       l1_ratio: 0.5 
       alpha: 1e-1 #TODO: figure out elasticnetCV
+      max_iter: 2000
+
   dsa:
-    n_delays: [10,1]
-    rank: 30
+    n_delays: [100,10]
+    rank: 100
     delay_interval: 1
     lr: 5e-3
     iters: 1500
