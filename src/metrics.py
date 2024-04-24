@@ -17,7 +17,7 @@ import numpy as np
 import torch
 from copy import deepcopy
 from sklearn.neighbors import NearestNeighbors
-from sklearn.linear_model import ElasticNetCV, RidgeCV
+from sklearn.linear_model import ElasticNetCV, ElasticNet
 from sklearn.model_selection import train_test_split
 
 
@@ -119,8 +119,8 @@ def r2(true_vals, pred_vals):
         true_vals = true_vals.reshape(-1, true_vals.shape[-1])
         pred_vals = pred_vals.reshape(-1, pred_vals.shape[-1])
 
-    SS_res = np.sum((true_vals - pred_vals) ** 2, dim=0)
-    SS_tot = np.sum((true_vals - np.mean(true_vals, dim=0)) ** 2, dim=0)
+    SS_res = np.sum((true_vals - pred_vals) ** 2, axis=0)
+    SS_tot = np.sum((true_vals - np.mean(true_vals, axis=0)) ** 2, axis=0)
 
     r2_vals = 1 - SS_res / SS_tot
     return np.mean(r2_vals)
@@ -242,14 +242,16 @@ def compute_all_pred_stats(true_vals, pred_vals, rank, norm=True):
 def calc_lyap(traj1, traj2, eps_max, tvals):
     separation = np.linalg.norm(traj1 - traj2, axis=1) / np.linalg.norm(traj1, axis=1)
     cutoff_index = np.where(separation < eps_max)[0][-1]
-    traj1 = traj1[:cutoff_index]
-    traj2 = traj2[:cutoff_index]
-    lyap = calculate_lyapunov_exponent(traj1, traj2, dt=np.median(np.diff(tvals)))
+    lyap = calculate_lyapunov_exponent(
+        traj1[:cutoff_index], traj2[:cutoff_index], dt=np.median(np.diff(tvals))
+    )
     return lyap, cutoff_index
 
 
 def get_flattened_hidden(model, inp):
-    h1 = model(inp)[1].detach().numpy()[0]
+    device = next(model.parameters()).device
+    inp = inp.to(device)
+    h1 = model(inp)[1].detach().cpu().numpy()[0]
     # first 1 is to read out hidden state only, second 0 is to read out the first trajectory in the batch
     if h1.ndim == 3:
         # flatten the last 2 dims
@@ -265,11 +267,15 @@ def compute_LE_model(
     atol=1e-10,
     n_samples=1000,
     traj_length=5000,
+    resample=True,
+    verbose=False,
 ):
+    if eq.ic.ndim > 1:
+        # if there are multiple initial conditions, we just need one
+        eq.ic = eq.ic[0]
     # model is the neural network
     # eq is the attractor
     # obs_fxn is the function that extracts the observed data to be input into the model
-
     all_ic = sample_initial_conditions(
         eq,
         n_samples,
@@ -293,7 +299,7 @@ def compute_LE_model(
             eq.ic = ic
             tvals, traj1 = eq.make_trajectory(
                 traj_length,
-                resample=True,
+                resample=resample,
                 return_times=True,
             )
 
@@ -305,7 +311,7 @@ def compute_LE_model(
                 # *= (1 + eps_attractor * (np.random.random(eq.ic.shape) - 0.5))
                 tvals, traj2 = eq.make_trajectory(
                     traj_length,
-                    resample=True,
+                    resample=resample,
                     return_times=True,
                 )
 
@@ -323,7 +329,7 @@ def compute_LE_model(
                 # eq.ic *= (1 + eps_model * (np.random.random(eq.ic.shape) - 0.5))
                 tvals, traj2 = eq.make_trajectory(
                     traj_length,
-                    resample=True,
+                    resample=resample,
                     return_times=True,
                 )
                 # next, pass these through the model
@@ -342,8 +348,9 @@ def compute_LE_model(
     all_cutoffs_eq = np.array(all_cutoffs_eq)
     all_lyap_model = np.array(all_lyap_model)
     all_cutoffs_model = np.array(all_cutoffs_model)
-    print("lyap eq", all_lyap_eq)
-    print("lyap model", all_lyap_model)
+    if verbose:
+        print("lyap eq", all_lyap_eq)
+        print("lyap model", all_lyap_model)
     return (
         all_lyap_eq,
         all_cutoffs_eq,
@@ -354,36 +361,52 @@ def compute_LE_model(
     )
 
 
-def compute_dynamic_quantities(model, attractor, traj_length, ntrajs, use_mve=False):
+def compute_dynamic_quantities(
+    model, attractor, traj_length, ntrajs, resample=False, use_mve=False, verbose=True
+):
     # basically what we're going to do is sampple a bunch of trajectories from the attractor
     # compute dynamical quantities on them, then pass the trajectories through the model
     # extract the hidden states on it, and then compute the same dynamical quantities on the hidden states
-
-    print("getting lyapunov exponents")
+    attractor_stats = {}
+    model_stats = {}
+    if verbose:
+        print("getting lyapunov exponents")
 
     attractor_lyap, _, model_lyap, _, traj1_tot, traj2_tot = compute_LE_model(
-        model, attractor, traj_length=traj_length, n_samples=ntrajs
+        model,
+        attractor,
+        traj_length=traj_length,
+        n_samples=ntrajs,
+        resample=resample,
+        verbose=verbose,
     )
+    attractor_stats["lyap"] = attractor_lyap
+    model_stats["lyap"] = model_lyap
 
-    print("calculating KY dim")
+    if verbose:
+        print("calculating KY dim")
 
     # calculate the kaplan-yorke dim of attractor and model lyaps
-    attractor_ky = kaplan_yorke_dimension(attractor_lyap)
+    # attractor_ky = kaplan_yorke_dimension(attractor_lyap)
     # filter nans from model_lyap, if there's nothing left skip ky dim
-    model_lyap = model_lyap[~np.isnan(model_lyap)]
-    if len(model_lyap) == 0:
-        model_ky = "nan"
-    else:
-        model_ky = kaplan_yorke_dimension(model_lyap)
+    # model_lyap = model_lyap[~np.isnan(model_lyap)]
+    # if len(model_lyap) == 0:
+    #     model_ky = "nan"
+    # else:
+    #     model_ky = kaplan_yorke_dimension(model_lyap)
 
-    print("calculating correlation integral")
+    # attractor_stats['ky-dim'] = attractor_ky
+    # model_stats['ky-dim'] = model_ky
+
+    if verbose:
+        print("calculating correlation integral")
     # for correlation integral, we want to generate 1 really long trajectory
     # and then pass it through the model
     # then we'll calculate the correlation integral on the hidden states
     # and the observed data
     tvals, traj1 = attractor.make_trajectory(
         traj_length * 10,
-        resample=False,
+        resample=resample,  # change this
         return_times=True,
     )
 
@@ -395,36 +418,29 @@ def compute_dynamic_quantities(model, attractor, traj_length, ntrajs, use_mve=Fa
     if h1.dtype in [np.complex64, np.complex128]:
         h1 = np.hstack([h1.real, h1.imag])
 
-    if not no_corr:
-        model_corr_int = corr_integral(h1)
-        attractor_corr_int = corr_integral(traj1)
-    else:
-        model_corr_int = -1
-        attractor_corr_int = -1
+    # if not no_corr:
+    #     model_corr_int = corr_integral(h1)
+    #     attractor_corr_int = corr_integral(traj1)
+    #     model_stats['corr_integral'] = model_corr_int
+    #     attractor_stats['corr_integral'] = attractor_corr_int
 
     if use_mve:
         print("calculating multiscale entropy")
         attractor_multiscale_entropy = mse_mv(traj1)
         model_multiscale_entropy = mse_mv(h1)
-
-    # put each set of stats into a separate dictionary
-    attractor_stats = {
-        "lyap": attractor_lyap,
-        "ky": attractor_ky,
-        "corr_int": attractor_corr_int,
-        "multiscale_entropy": attractor_multiscale_entropy,
-    }
-    model_stats = {
-        "lyap": model_lyap,
-        "ky": model_ky,
-        "corr_int": model_corr_int,
-        "multiscale_entropy": model_multiscale_entropy,
-    }
+        model_stats["multiscale_entropy"] = model_multiscale_entropy
+        attractor_stats["multiscale_entropy"] = attractor_multiscale_entropy
 
     return attractor_stats, model_stats
 
 
 def neighbors_comparison(true, embedded, n_neighbors=5):
+    if true.ndim == 3 and embedded.ndim == 3:
+        true = true.reshape(-1, true.shape[-1])
+        embedded = embedded.reshape(-1, embedded.shape[-1])
+
+    if np.iscomplex(embedded).any():
+        embedded = np.hstack([embedded.real, embedded.imag])
     # nearest neighbors in the original space
     nn_orig = NearestNeighbors(n_neighbors=n_neighbors).fit(true)
     distances_orig, indices_orig = nn_orig.kneighbors(true)
@@ -467,14 +483,12 @@ def gp_diff_asym(true, embedded, standardize=True):
 
     gpdists = np.zeros(b1)
     for i in range(b1):
-        gpdists[i] = gpdistance(true, embedded, standardize, register)
+        gpdists[i] = gpdistance(true[i], embedded[i], standardize, register)
 
     return gpdists
 
 
-def predict_hidden_dims(
-    true, embedded, dim_observed, model=ElasticNetCV, **model_kwargs
-):
+def predict_hidden_dims(true, embedded, dim_observed, model=ElasticNet, **model_kwargs):
     # given the true full state and the embedding from the net, try and predict
     # the unobserved states of the model
     d_true = true.shape[-1]
@@ -494,4 +508,4 @@ def predict_hidden_dims(
 
     model.fit(X_train, y_train)
 
-    return model.score(X_train, y_train), model.score(X_test, y_test)
+    return model.score(X_train, y_train), model.score(X_test, y_test),model

@@ -219,6 +219,8 @@ class S4DMinimal(nn.Module):
 
         # Apply S4 block: we ignore the state input and output
         xs, ys = self.s4(u, rnn=self.rnn)
+        if xs is not None:
+            xs = xs.reshape(xs.shape[0], xs.shape[1], -1)
         self.ssm_states = xs
         self.ssm_outs = ys
 

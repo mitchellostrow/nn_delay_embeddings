@@ -105,6 +105,7 @@ class LRUMinimal(nn.Module):
         expansion=4,
         rmin=0.8,
         rmax=0.99,
+        dropout=0.0,
     ):
         super().__init__()
         if d_state is None:

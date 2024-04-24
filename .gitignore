@@ -1,0 +1,4 @@
+outputs/
+multirun/
+slurm*
+*.pyc

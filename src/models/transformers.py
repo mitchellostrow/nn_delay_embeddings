@@ -20,11 +20,12 @@ class MLP(nn.Module):
 
 
 class CausalSelfAttention(nn.Module):
-    def __init__(self, d_model, n_head):
+    def __init__(self, d_model, n_head,temp=None):
         super().__init__()
         assert d_model % n_head == 0
         self.d_model = d_model
         self.n_head = n_head
+        self.temp = temp
         self.qkv = nn.Linear(d_model, 3 * d_model, bias=True)
         self.attn_out = nn.Linear(d_model, d_model, bias=True)
 
@@ -39,7 +40,7 @@ class CausalSelfAttention(nn.Module):
         v = v.view(batch, length, self.n_head, dim // self.n_head).transpose(1, 2)
         # causal self-attention; Self-attend: (B, nh, T, hs) x (B, nh, hs, T) -> (B, nh, T, T)
 
-        scale_factor = 1 / math.sqrt(q.size(-1))
+        scale_factor = 1 / math.sqrt(q.size(-1)) if self.temp is None else self.temp
         attn_bias = torch.zeros(length, length, dtype=q.dtype, device=x.device)
         temp_mask = torch.ones(length, length, dtype=torch.bool, device=x.device).tril(
             diagonal=0
@@ -73,10 +74,10 @@ class LayerNorm(nn.Module):
 
 
 class Block(nn.Module):
-    def __init__(self, d_model, n_head):
+    def __init__(self, d_model, n_head,temp=None):
         super().__init__()
         self.ln_1 = LayerNorm(d_model, bias=True)
-        self.attn = CausalSelfAttention(d_model, n_head)
+        self.attn = CausalSelfAttention(d_model, n_head,temp)
         self.attn_out_resid_dummy = nn.Identity()
 
         self.ln_2 = LayerNorm(d_model, bias=True)
@@ -96,7 +97,7 @@ class Block(nn.Module):
 
 
 class GPT(nn.Module):
-    def __init__(self, input_dim, d_model, n_head, context_length, seed=10):
+    def __init__(self, input_dim, d_model, n_head, context_length, seed=10,temp=None):
         super().__init__()
         # set seed
         torch.manual_seed(seed)
@@ -105,7 +106,7 @@ class GPT(nn.Module):
             dict(
                 wte=nn.Linear(input_dim, d_model),
                 wpe=nn.Embedding(context_length, d_model),
-                h=Block(d_model, n_head),
+                h=Block(d_model, n_head,temp),
                 out=nn.Linear(d_model, input_dim),
             )
         )
