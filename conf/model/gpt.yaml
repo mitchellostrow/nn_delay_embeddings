@@ -1,4 +1,4 @@
-name: GPT
+model_name: GPT
 kwargs:
   input_dim: 1
   d_model: 100

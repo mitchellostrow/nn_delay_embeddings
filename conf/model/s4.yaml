@@ -1,4 +1,4 @@
-name: S4
+model_name: S4
 kwargs:
   input_dim: 1
   d_model: 10

@@ -15,15 +15,15 @@ attractor:
 
 data:
   time: 1000
-  nsamples: 1000
+  nsamples: 100
   batch_size: 32
 
 train:
   optimizer: AdamW
-  lr: 0.001
-  weight_decay: 0.001
+  lr: 0.01
+  weight_decay: 0.01
   epochs: 2000
-  loss: nn.MSELoss
+  loss: MSE
   nsteps: 1 #train on nstep prediction
   eval_nsteps: 100
   schedule: True
@@ -57,8 +57,8 @@ eval:
     lr: 5e-3
     iters: 1500
     device: cuda
-
-
     
+job:
+  chdir: True
 
 

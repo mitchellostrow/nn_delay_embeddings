@@ -3,7 +3,9 @@
 import wandb
 import torch
 import torch.nn as nn
-from dysts.flows import *  # import all of the attractors
+from dysts import flows
+from dysts.flows import *
+import dysts
 import matplotlib.pyplot as plt
 import numpy as np
 import torch.nn.functional as F
@@ -13,12 +15,17 @@ from omegaconf import DictConfig
 from torch.utils.data import DataLoader
 from torch.optim import lr_scheduler
 from torch.optim import AdamW, Adam, SGD
-from src.models import *
+import sys
+sys.path.append("/om2/user/ostrow/NN_delay_embeddings/nn_delay_embeddings/src")
+from src.models import RNN, Mamba, S4, GPT, LRU
 from evals import eval_embedding
 from tqdm import tqdm
 
-
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+init_mod = {"RNN":RNN,"Mamba":Mamba,"S4":S4, "GPT":GPT,"LRU":LRU} #bc eval wasn't working
+init_flow = {"Lorenz": Lorenz}
+init_optim = {"AdamW": AdamW}
+init_loss = {"MSE": nn.MSELoss}
 
 class CosineWarmupScheduler(lr_scheduler._LRScheduler):
     def __init__(self, optimizer, warmup, max_iters):
@@ -37,7 +44,7 @@ class CosineWarmupScheduler(lr_scheduler._LRScheduler):
         return lr_factor
 
 def gen_data(cfg):
-    model = eval(cfg.attractor.name)()
+    model = init_flow[cfg.attractor.name]()#eval(cfg.attractor.name)()
     if cfg.attractor.dt is not None and cfg.attractor.dt not in {"none", "None"}:
         model.dt = cfg.attractor.dt
     nsamples = cfg.data.nsamples
@@ -73,7 +80,7 @@ def train(
     if isinstance(nsteps, int):
         nsteps = [nsteps]
     if cfg.train.schedule is not None:
-        lr_scheduler = CosineWarmupScheduler(optimizer=optimizer, warmup=100, max_iters=epochs*nsteps)
+        lr_scheduler = CosineWarmupScheduler(optimizer=optimizer, warmup=100, max_iters=epochs*len(nsteps))
 
     model.to(device)
     dim_observed = cfg.attractor.dim_observed
@@ -108,7 +115,7 @@ def train(
             wandb.log({'lr': lr_scheduler.get_lr()[0]})
             if epoch % cfg.train.eval_nsteps == 0:
                 # save the model
-                torch.save(model.state_dict(), os.getcwd() + f"/{cfg.model.name}_{epoch*(j+1)}.pt")
+                torch.save(model.state_dict(), os.getcwd() + f"/{cfg.model.model_name}_{epoch*(j+1)}.pt")
 
                 model.eval()
                 data = next(iter(val_set))
@@ -135,13 +142,15 @@ def train(
     return model, train_loss, val_losses
 
 
-@hydra.main(config_path="conf", config_name="config")
+@hydra.main(config_path="conf", config_name="config",version_base="1.1")
 def main(cfg: DictConfig):
-    model = eval(cfg.model.name)(**cfg.model.kwargs)
+    sys.path.append("/om2/user/ostrow/NN_delay_embeddings/nn_delay_embeddings/src")
+    from src.models import RNN, Mamba, S4, GPT, LRU
+    model = init_mod[cfg.model.model_name](**cfg.model.kwargs)#eval(cfg.model.model_name)(**cfg.model.kwargs)
     model.train()
     dict_cfg = {
         **cfg.model.kwargs,
-        "model_name": cfg.model.name,
+        "model_name": cfg.model.model_name,
         **cfg.attractor,
         **cfg.data,
         **cfg.train,
@@ -155,12 +164,12 @@ def main(cfg: DictConfig):
     _, val_loader, val_dat = gen_data(cfg)
 
     # train the model
-    optimizer = eval(cfg.train.optimizer)
+    optimizer = init_optim[cfg.train.optimizer] #eval(cfg.train.optimizer)
     optimizer = optimizer(
         model.parameters(), lr=cfg.train.lr, weight_decay=cfg.train.weight_decay
     )
 
-    loss = eval(cfg.train.loss)()
+    loss = init_loss[cfg.train.loss]() #eval(cfg.train.loss)()
     model, train_loss, val_loss = train(
         cfg,
         attractor,

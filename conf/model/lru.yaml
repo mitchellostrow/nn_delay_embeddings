@@ -1,4 +1,4 @@
-name: LRU
+model_name: LRU
 kwargs:
   input_dim: 1
   d_model: 10
