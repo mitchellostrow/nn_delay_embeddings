@@ -148,14 +148,21 @@ def main(cfg: DictConfig):
     from src.models import RNN, Mamba, S4, GPT, LRU
     model = init_mod[cfg.model.model_name](**cfg.model.kwargs)#eval(cfg.model.model_name)(**cfg.model.kwargs)
     model.train()
+    #calcualte the number of parameters
+    num_params = sum(p.numel() for p in model.parameters()) 
+
+
     dict_cfg = {
         **cfg.model.kwargs,
         "model_name": cfg.model.model_name,
+        "num_params": num_params,
         **cfg.attractor,
         **cfg.data,
         **cfg.train,
     }
-    wandb.init(project="nn_delays", config=dict_cfg)
+    #create a random number ind
+    ind = np.random.randint(9999)
+    wandb.init(project="nn_delays", config=dict_cfg, name=f"{cfg.model.model_name}_{num_params // 1000}params_{ind}")
 
     wandb.watch(model, log_freq=100)
 

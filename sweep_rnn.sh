@@ -8,6 +8,6 @@
 #SBATCH --gres=gpu:1
 
 unset XDG_RUNTIME_DIR
-conda activate nn_delays
+source activate nn_delays
 
-python train.py -m model=rnn model.kwargs.architecture=LSTM,GRU,VanillaRNN model.kwargs.d_model=25,50,100 
+python train.py -m model=rnn model.kwargs.architecture=LSTM,GRU,VanillaRNN model.kwargs.d_model=10,25,50,100 train.schedule=False

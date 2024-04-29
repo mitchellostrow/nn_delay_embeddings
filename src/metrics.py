@@ -19,6 +19,7 @@ from copy import deepcopy
 from sklearn.neighbors import NearestNeighbors
 from sklearn.linear_model import ElasticNetCV, ElasticNet
 from sklearn.model_selection import train_test_split
+from sklearn.neural_network import MLPRegressor
 
 
 def mae(x, y):
@@ -241,7 +242,12 @@ def compute_all_pred_stats(true_vals, pred_vals, rank, norm=True):
 
 def calc_lyap(traj1, traj2, eps_max, tvals):
     separation = np.linalg.norm(traj1 - traj2, axis=1) / np.linalg.norm(traj1, axis=1)
-    cutoff_index = np.where(separation < eps_max)[0][-1]
+    cutoff_index = np.where(separation < eps_max)[0]
+    import pdb; pdb.set_trace()
+    if len(cutoff_index) > 0:
+        cutoff_index = cutoff_index[-1]
+    else:
+        cutoff_index = len(tvals) - 1
     lyap = calculate_lyapunov_exponent(
         traj1[:cutoff_index], traj2[:cutoff_index], dt=np.median(np.diff(tvals))
     )
@@ -340,7 +346,7 @@ def compute_LE_model(
 
                 h1 = get_flattened_hidden(model, traj1_x)
                 h2 = get_flattened_hidden(model, traj2_x)
-                lyap, cutoff_index = calc_lyap(h1, h2, eps_max * 1e3, tvals)
+                lyap, cutoff_index = calc_lyap(h1, h2, eps_max, tvals)
                 all_lyap_model.append(lyap)
                 all_cutoffs_model.append(cutoff_index)
 
@@ -433,10 +439,17 @@ def compute_dynamic_quantities(
 
     return attractor_stats, model_stats
 
+def tail_biting_comparison(model,attractor,nsteps,traj_length,traj_length,resample=False):
+    #run the model in a tailbiting fashion and compute the dynamic quantities on the 
+    #predicted value
+    pass
+
+
 
 def neighbors_comparison(true, embedded, n_neighbors=5):
-    if true.ndim == 3 and embedded.ndim == 3:
+    if true.ndim == 3: 
         true = true.reshape(-1, true.shape[-1])
+    if embedded.ndim == 3:
         embedded = embedded.reshape(-1, embedded.shape[-1])
 
     if np.iscomplex(embedded).any():
@@ -462,7 +475,6 @@ def neighbors_comparison(true, embedded, n_neighbors=5):
     ]
 
     return np.mean(jaccard_indices), np.mean(correlation_coefficients)
-
 
 def gp_diff_asym(true, embedded, standardize=True):
     # generalization of dysts gpdistance for comparison of trajecotries

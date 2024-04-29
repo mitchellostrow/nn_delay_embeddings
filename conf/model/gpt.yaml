@@ -6,3 +6,4 @@ kwargs:
   context_length: 1000 
   seed: 10
   temp:
+  use_pe: True

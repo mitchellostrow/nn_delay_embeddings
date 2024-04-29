@@ -15,7 +15,7 @@ attractor:
 
 data:
   time: 1000
-  nsamples: 100
+  nsamples: 1000
   batch_size: 32
 
 train:
@@ -45,9 +45,13 @@ eval:
     rtol: 1e-3
     atol: 1e-10
   predict_hiddens:
-    model_kwargs:
+    linear_model_kwargs:
       l1_ratio: 0.5 
-      alpha: 1e-1 #TODO: figure out elasticnetCV
+      alpha: 1e-1 
+      max_iter: 2000
+    mlp_model_kwargs:
+      hidden_layer_sizes: [300]
+      alpha: 1e-4
       max_iter: 2000
 
   dsa:

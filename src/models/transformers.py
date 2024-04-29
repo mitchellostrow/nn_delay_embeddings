@@ -97,11 +97,12 @@ class Block(nn.Module):
 
 
 class GPT(nn.Module):
-    def __init__(self, input_dim, d_model, n_head, context_length, seed=10,temp=None):
+    def __init__(self, input_dim, d_model, n_head, context_length, seed=10,temp=None,use_pe=True):
         super().__init__()
         # set seed
         torch.manual_seed(seed)
         self.context_length = context_length
+        self.use_pe = use_pe
         self.transformer = nn.ModuleDict(
             dict(
                 wte=nn.Linear(input_dim, d_model),
@@ -128,7 +129,10 @@ class GPT(nn.Module):
         embed = self.transformer.wte(x)  # token embeddings of shape (b, t, n_embd)
 
         pos_emb = self.transformer.wpe(pos)  # position embeddings of shape (t, n_embd)
-        x = embed + pos_emb
+        if self.use_pe:
+            x = embed + pos_emb
+        else:
+            x = embed
 
         x = self.transformer.h(x)
 
