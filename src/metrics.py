@@ -20,7 +20,7 @@ from sklearn.neighbors import NearestNeighbors
 from sklearn.linear_model import ElasticNet
 from sklearn.model_selection import train_test_split
 from skccm import CCM
-from skccm.utilities import train_test_split
+from skccm.utilities import train_test_split as ccm_train_test_split
 
 
 def mae(x, y):
@@ -121,11 +121,11 @@ def r2(true_vals, pred_vals):
         true_vals = true_vals.reshape(-1, true_vals.shape[-1])
         pred_vals = pred_vals.reshape(-1, pred_vals.shape[-1])
 
-    SS_res = np.sum((true_vals - pred_vals) ** 2, axis=0)
-    SS_tot = np.sum((true_vals - np.mean(true_vals, axis=0)) ** 2, axis=0)
+    SS_res = ((true_vals - pred_vals) ** 2).sum(axis=0)
+    SS_tot = ((true_vals - true_vals.mean(axis=0)) ** 2).sum(axis=0)
 
     r2_vals = 1 - SS_res / SS_tot
-    return np.mean(r2_vals)
+    return r2_vals.mean()
 
 
 def correl(x, y):
@@ -244,9 +244,7 @@ def compute_all_pred_stats(true_vals, pred_vals, rank, norm=True):
 def calc_lyap(traj1, traj2, eps_max, tvals):
     separation = np.linalg.norm(traj1 - traj2, axis=1) / np.linalg.norm(traj1, axis=1)
     cutoff_index = np.where(separation < eps_max)[0]
-    import pdb
 
-    pdb.set_trace()
     if len(cutoff_index) > 0:
         cutoff_index = cutoff_index[-1]
     else:
@@ -451,7 +449,7 @@ def tail_biting_comparison(
     pass
 
 
-def neighbors_comparison(true, embedded, n_neighbors=5,geodesic_dist=False):
+def neighbors_comparison(true, embedded, n_neighbors=5, geodesic_dist=False):
     if true.ndim == 3:
         true = true.reshape(-1, true.shape[-1])
     if embedded.ndim == 3:
@@ -459,7 +457,7 @@ def neighbors_comparison(true, embedded, n_neighbors=5,geodesic_dist=False):
 
     if np.iscomplex(embedded).any():
         embedded = np.hstack([embedded.real, embedded.imag])
-    
+
     # nearest neighbors in the original space
     nn_orig = NearestNeighbors(n_neighbors=n_neighbors).fit(true)
     distances_orig, indices_orig = nn_orig.kneighbors(true)
@@ -475,25 +473,25 @@ def neighbors_comparison(true, embedded, n_neighbors=5,geodesic_dist=False):
     ]
 
     # Convergent Cross Mapping: try and predict X from the mappings from X to Y via nearest neighbors
-    #for each embedded, map back to true and find the n nearest neighbors. Then, find their mapping back in the embedded space
-    #and try and predict the original point from the mapping back to the original space
-    x1tr, x1te, x2tr, x2te = train_test_split(true,embedded, percent=.75)
+    # for each embedded, map back to true and find the n nearest neighbors. Then, find their mapping back in the embedded space
+    # and try and predict the original point from the mapping back to the original space
+    x1tr, x1te, x2tr, x2te = ccm_train_test_split(true, embedded, percent=0.75)
 
-    ccm = CCM() #initiate the class
+    ccm = CCM()  # initiate the class
 
-    #library lengths to test
+    # library lengths to test
     len_tr = len(x1tr)
-    lib_lens = np.arange(10, len_tr, len_tr/20, dtype='int')
+    lib_lens = np.arange(10, len_tr, len_tr / 20, dtype="int")
 
-    #test causation
-    ccm.fit(x1tr,x2tr)
-    x1p, x2p = ccm.predict(x1te, x2te,lib_lengths=lib_lens)
+    # test causation
+    ccm.fit(x1tr, x2tr)
+    x1p, x2p = ccm.predict(x1te, x2te, lib_lengths=lib_lens)
 
-    sc1,sc2 = ccm.score()
-    #sc1 = score of predicting x1 from x2
-    #sc2 = score of predicting x2 from x1 -> x1 is lowd so let's dothis
+    sc1, sc2 = ccm.score()
+    # sc1 = score of predicting x1 from x2
+    # sc2 = score of predicting x2 from x1 -> x1 is lowd so let's dothis
 
-    return np.mean(jaccard_indices),sc2
+    return np.mean(jaccard_indices), sc2
 
 
 def gp_diff_asym(true, embedded, standardize=True):

@@ -15,7 +15,7 @@ attractor:
 
 data:
   time: 100
-  nsamples: 1000
+  nsamples: 100
   batch_size: 32
 
 train:
@@ -29,13 +29,15 @@ train:
   schedule: True
 
 eval: 
-  metrics: [ #TODO: use this
+  nsteps: 5
+  metrics: [ 
     compute_all_pred_stats,
     compute_dynamic_quantities,
     neighbors_comparison,
-    gp_diff_asym,
-    predict_hidden_dims
-    dsa
+    # gp_diff_asym,
+    predict_hidden_dims_lm,
+    predict_hidden_dims_mlp,
+    # dsa
     ]
   neighbors_comparison:
     n_neighbors: 25
@@ -55,8 +57,8 @@ eval:
       max_iter: 2000
 
   dsa:
-    n_delays: [100,10]
-    rank: 100
+    n_delays: [10,10]
+    rank: 30
     pca_dim:  #blank if none
     delay_interval: 1
     lr: 5e-3

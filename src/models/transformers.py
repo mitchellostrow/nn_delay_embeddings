@@ -6,7 +6,7 @@ import warnings
 
 
 class MLP(nn.Module):
-    def __init__(self, d_model,mlp_hidden):
+    def __init__(self, d_model, mlp_hidden):
         super().__init__()
         self.c_fc = nn.Linear(d_model, mlp_hidden, bias=True)
         self.gelu = nn.GELU()
@@ -74,17 +74,17 @@ class LayerNorm(nn.Module):
 
 
 class Block(nn.Module):
-    def __init__(self, d_model, n_head, temp=None,mlp_hidden=None):
+    def __init__(self, d_model, n_head, temp=None, mlp_hidden=None):
         super().__init__()
         if mlp_hidden is None:
-            mlp_hidden = d_model*4
+            mlp_hidden = d_model * 4
 
         self.ln_1 = LayerNorm(d_model, bias=True)
         self.attn = CausalSelfAttention(d_model, n_head, temp)
         self.attn_out_resid_dummy = nn.Identity()
 
         self.ln_2 = LayerNorm(d_model, bias=True)
-        self.mlp = MLP(d_model,mlp_hidden)
+        self.mlp = MLP(d_model, mlp_hidden)
 
     def forward(self, x):
         x = self.ln_1(x)
@@ -112,7 +112,7 @@ class GPT(nn.Module):
         use_pe=True,
     ):
         super().__init__()
-       
+
         # set seed
         torch.manual_seed(seed)
         self.context_length = context_length
@@ -121,7 +121,7 @@ class GPT(nn.Module):
             dict(
                 wte=nn.Linear(input_dim, d_model),
                 wpe=nn.Embedding(context_length, d_model),
-                h=Block(d_model, n_head, temp,mlp_hidden),
+                h=Block(d_model, n_head, temp, mlp_hidden),
                 out=nn.Linear(d_model, input_dim),
             )
         )

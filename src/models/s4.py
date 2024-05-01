@@ -191,7 +191,7 @@ class S4DMinimal(nn.Module):
             self.dm = d_model
 
         if mlp_hidden is None:
-            mlp_hidden = 4*self.dm
+            mlp_hidden = 4 * self.dm
 
         self.norm = nn.LayerNorm(self.dm) if not prenorm else nn.LayerNorm(d_model)
 

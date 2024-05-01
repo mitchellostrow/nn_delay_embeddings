@@ -111,7 +111,7 @@ class LRUMinimal(nn.Module):
         if d_state is None:
             d_state = d_model
         if mlp_hidden is None:
-            mlp_hidden = 4*d_model
+            mlp_hidden = 4 * d_model
 
         self.encoder = nn.Linear(input_dim, d_model)
 

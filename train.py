@@ -19,7 +19,7 @@ import sys
 
 sys.path.append("/om2/user/ostrow/NN_delay_embeddings/nn_delay_embeddings/src")
 from src.models import RNN, Mamba, S4, GPT, LRU
-from evals import eval_embedding
+from evals import eval_embedding,eval_nstep
 from tqdm import tqdm
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -64,11 +64,11 @@ def gen_data(cfg):
         time, resample=cfg.attractor.resample, noise=cfg.attractor.driven_noise
     )
     data += np.random.randn(*data.shape) * cfg.attractor.observed_noise
-    #plot x and delay embedded x and y
-    fig,ax = plt.subplots(1,2,figsize=(10,10))
-    for i in range(min(10,data.shape[0])):
-        ax[0].plot(data[i,:,0],data[i,:,1])
-        ax[1].plot( data[i, :, cfg.attractor.dim_observed])
+    # plot x and delay embedded x and y
+    fig, ax = plt.subplots(1, 2, figsize=(10, 10))
+    for i in range(min(10, data.shape[0])):
+        ax[0].plot(data[i, :, 0], data[i, :, 1])
+        ax[1].plot(data[i, :, cfg.attractor.dim_observed])
     plt.savefig("attractor.png")
 
     data = torch.tensor(data).float()
@@ -111,18 +111,21 @@ def train(
             for i, data in enumerate(train_set):
                 data = data[:, :, dim_observed : dim_observed + 1]
 
-                x = data[:, :-n]
-                y = data[:, n:]
+                x = data[:, :-1] 
+                # y = data[:, n:]#ypred = data[:,1:1-n]
 
                 x = x.to(device)
-                y = y.to(device)
-                optimizer.zero_grad()
-                for _ in range(n):
+                for t in range(1,n+1):
+                    tn = t-n if t-n < 0 else None #so we don't index from zero
+                    y = data[:,t:tn].to(device)
+                    optimizer.zero_grad()
+
                     y_pred, _ = model(x)
                     x = y_pred
-                loss = loss_fn(y_pred, y)
-                loss.backward()
-                optimizer.step()
+
+                    loss = loss_fn(y_pred, y)
+                    loss.backward()
+                    optimizer.step()
 
                 total_loss += loss.item()
             train_loss.append(total_loss / len(train_set))
@@ -150,8 +153,10 @@ def train(
                 # run the evals here
                 # need to get the full state space of x
                 eval_embedding(
-                    attractor, model, data[:, :-1], x, y, y_pred, hiddens, cfg
+                    attractor, model, data[:, :-1], y, y_pred, hiddens, cfg
                 )
+
+                eval_nstep(model,data,cfg)
 
                 loss = loss_fn(y_pred, y)
                 val_loss = loss.item()
