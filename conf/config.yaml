@@ -15,7 +15,7 @@ attractor:
 
 data:
   time: 100
-  nsamples: 100
+  nsamples: 1000
   batch_size: 32
 
 train:
@@ -29,7 +29,11 @@ train:
   schedule: True
 
 eval: 
-  nsteps: 5
+  nstep_eval: 
+    nsteps: 5
+    kl_bins: 100
+    spectral_smoothing: 4
+    spectral-cutoff: 200
   metrics: [ 
     compute_all_pred_stats,
     compute_dynamic_quantities,
@@ -48,7 +52,7 @@ eval:
     atol: 1e-10
   predict_hiddens:
     linear_model_kwargs:
-      l1_ratio: 0.0 
+      l1_ratio: 0.4 
       alpha: 1e-1 
       max_iter: 2000
     mlp_kwargs:

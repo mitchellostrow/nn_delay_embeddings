@@ -19,7 +19,7 @@ import sys
 
 sys.path.append("/om2/user/ostrow/NN_delay_embeddings/nn_delay_embeddings/src")
 from src.models import RNN, Mamba, S4, GPT, LRU
-from evals import eval_embedding,eval_nstep
+from evals import eval_embedding, eval_nstep
 from tqdm import tqdm
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -111,13 +111,13 @@ def train(
             for i, data in enumerate(train_set):
                 data = data[:, :, dim_observed : dim_observed + 1]
 
-                x = data[:, :-1] 
+                x = data[:, :-1]
                 # y = data[:, n:]#ypred = data[:,1:1-n]
 
                 x = x.to(device)
-                for t in range(1,n+1):
-                    tn = t-n if t-n < 0 else None #so we don't index from zero
-                    y = data[:,t:tn].to(device)
+                for t in range(1, n + 1):
+                    tn = t - n if t - n < 0 else None  # so we don't index from zero
+                    y = data[:, t:tn].to(device)
                     optimizer.zero_grad()
 
                     y_pred, _ = model(x)
@@ -152,11 +152,9 @@ def train(
                 y_pred, hiddens = model(x)
                 # run the evals here
                 # need to get the full state space of x
-                eval_embedding(
-                    attractor, model, data[:, :-1], y, y_pred, hiddens, cfg
-                )
+                eval_embedding(attractor, model, data[:, :-1], y, y_pred, hiddens, cfg)
 
-                eval_nstep(model,data,cfg)
+                eval_nstep(model, data, cfg)
 
                 loss = loss_fn(y_pred, y)
                 val_loss = loss.item()

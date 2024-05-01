@@ -271,7 +271,6 @@ def compute_LE_model(
     eq,
     obs_fxn=lambda x: x[:, 0:1],
     rtol=1e-3,
-    atol=1e-10,
     n_samples=1000,
     traj_length=5000,
     resample=True,
@@ -351,20 +350,14 @@ def compute_LE_model(
                 all_lyap_model.append(lyap)
                 all_cutoffs_model.append(cutoff_index)
 
-    all_lyap_eq = np.array(all_lyap_eq)
-    all_cutoffs_eq = np.array(all_cutoffs_eq)
-    all_lyap_model = np.array(all_lyap_model)
-    all_cutoffs_model = np.array(all_cutoffs_model)
+    all_lyap_eq = np.array(all_lyap_eq).mean()
+    all_lyap_model = np.array(all_lyap_model).mean()
     if verbose:
         print("lyap eq", all_lyap_eq)
         print("lyap model", all_lyap_model)
     return (
         all_lyap_eq,
-        all_cutoffs_eq,
         all_lyap_model,
-        all_cutoffs_model,
-        traj1_tot,
-        traj2_tot,
     )
 
 
@@ -379,7 +372,7 @@ def compute_dynamic_quantities(
     if verbose:
         print("getting lyapunov exponents")
 
-    attractor_lyap, _, model_lyap, _, traj1_tot, traj2_tot = compute_LE_model(
+    attractor_lyap, model_lyap = compute_LE_model(
         model,
         attractor,
         traj_length=traj_length,
@@ -387,8 +380,8 @@ def compute_dynamic_quantities(
         resample=resample,
         verbose=verbose,
     )
-    attractor_stats["lyap"] = attractor_lyap
-    model_stats["lyap"] = model_lyap
+    attractor_stats["true_estim_lyap"] = attractor_lyap
+    model_stats["model_estim_lyap"] = model_lyap
 
     if verbose:
         print("calculating KY dim")
@@ -441,15 +434,7 @@ def compute_dynamic_quantities(
     return attractor_stats, model_stats
 
 
-def tail_biting_comparison(
-    model, attractor, nsteps, traj_length, ntrajs, resample=False
-):
-    # run the model in a tailbiting fashion and compute the dynamic quantities on the
-    # predicted value
-    pass
-
-
-def neighbors_comparison(true, embedded, n_neighbors=5, geodesic_dist=False):
+def neighbors_comparison(true, embedded, n_neighbors=5):
     if true.ndim == 3:
         true = true.reshape(-1, true.shape[-1])
     if embedded.ndim == 3:
@@ -491,7 +476,7 @@ def neighbors_comparison(true, embedded, n_neighbors=5, geodesic_dist=False):
     # sc1 = score of predicting x1 from x2
     # sc2 = score of predicting x2 from x1 -> x1 is lowd so let's dothis
 
-    return np.mean(jaccard_indices), sc2
+    return np.mean(jaccard_indices), sc2[-1]  # look at the converged value.
 
 
 def gp_diff_asym(true, embedded, standardize=True):
