@@ -11,6 +11,7 @@ from src.metrics import (
 )
 from DSA import DSA
 from sklearn.decomposition import PCA
+from sklearn.manifold import Isomap
 import io
 import numpy as np
 from sklearn.linear_model import ElasticNet
@@ -161,15 +162,15 @@ def eval_nstep(model, data, cfg):
                 wandb.log({f"{i}_step_{k}": pred_stats[k]})
 
             # kl-div between the output trajectories
-            kldiv = klx_metric(y_pred.detach().cpu(), y_i, cfg.evals.nstep_eval.kl_bins)
+            kldiv = klx_metric(y_pred.detach().cpu(), y_i, cfg.eval.nstep_eval.kl_bins)
             wandb.log({f"{i}_step_kl_div": kldiv})
 
             # correlation between fourier spectra
             spectral_corr = power_spectrum_error_per_dim(
                 y_pred.detach().cpu(),
                 y_i,
-                cfg.evals.nstep_eval.spectral_smoothing,
-                cfg.evals.nstep_eval.spectral_cutoff,
+                cfg.eval.nstep_eval.spectral_smoothing,
+                cfg.eval.nstep_eval.spectral_cutoff,
             )
             wandb.log({f"{i}_step_spectral_corr": spectral_corr})
 
@@ -194,6 +195,20 @@ def run_plot_pca(data, label):
     plt.savefig(f"{label}.pdf")
     # save in wandb
     wandb.log({label: plt})
+    plt.close()
+
+
+    #plot 2d isomap too!
+    red = Isomap(n_components=2,n_neighbors=5).fit_transform(d)
+    red = red.reshape(data.shape[0],data.shape[1],2)
+    for k in range(4):
+        plt.plot(red[k,:,0],red[k,:,1])
+    plt.xlabel("Isomap 1")
+    plt.ylabel("Isomap 2")
+    plt.tight_layout()
+    plt.savefig(f"{label}_isomap.pdf")
+    wandb.log({f"{label}_isomap": plt})
+    
 
 
 # the following functions were adapted from https://github.com/DurstewitzLab/dendPLRNN/blob/main/BPTT_TF/evaluation/
@@ -226,7 +241,8 @@ def calc_histogram(x, n_bins, min_, max_):
     :return: histogram
     """
     dim_x = x.shape[1]  # number of dimensions
-    x = torch.from_numpy(x)
+    if isinstance(x,np.ndarray):
+        x = torch.from_numpy(x)
 
     coordinates = (n_bins * (x - min_) / (max_ - min_)).long()
 

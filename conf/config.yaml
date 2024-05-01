@@ -10,12 +10,11 @@ attractor:
   dt: 0.01
   observed_noise: 0.05
   dim_observed: 0
-  resample: True
-  # timescale: 0.01 #if resample is False, we need to pick this. TODO: implement
+  resample: False
 
 data:
-  time: 100
-  nsamples: 1000
+  time: 10
+  nsamples: 50000
   batch_size: 32
 
 train:
@@ -24,7 +23,7 @@ train:
   weight_decay: 0.01
   epochs: 2000
   loss: MSE
-  nsteps: 1 #train on nstep prediction
+  nsteps: [1,2] #train on nstep prediction
   eval_nsteps: 100
   schedule: True
 
@@ -33,7 +32,7 @@ eval:
     nsteps: 5
     kl_bins: 100
     spectral_smoothing: 4
-    spectral-cutoff: 200
+    spectral_cutoff: 200
   metrics: [ 
     compute_all_pred_stats,
     compute_dynamic_quantities,

@@ -66,8 +66,8 @@ def gen_data(cfg):
     data += np.random.randn(*data.shape) * cfg.attractor.observed_noise
     # plot x and delay embedded x and y
     fig, ax = plt.subplots(1, 2, figsize=(10, 10))
-    for i in range(min(10, data.shape[0])):
-        ax[0].plot(data[i, :, 0], data[i, :, 1])
+    for i in range(min(100, data.shape[0])):
+        ax[0].scatter(data[i, :, 0], data[i, :, 1],c="k",alpha=0.5)
         ax[1].plot(data[i, :, cfg.attractor.dim_observed])
     plt.savefig("attractor.png")
 
