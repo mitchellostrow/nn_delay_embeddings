@@ -26,7 +26,8 @@ class S4D_rnn(nn.Module):
         log_dt = torch.rand(input_dim) * (math.log(dt_max) - math.log(dt_min)) + np.log(
             dt_min
         )
-        self.register("log_dt", log_dt, lr)
+        self.log_dt = nn.Parameter(log_dt)
+        # self.register("log_dt", log_dt, lr)
 
         # s4d-lin intialization
         log_A_real = torch.log(0.5 * torch.ones(input_dim, n_states_per_input // 2))
@@ -34,16 +35,20 @@ class S4D_rnn(nn.Module):
             torch.arange(n_states_per_input // 2), "n -> h n", h=input_dim
         )
 
-        self.register("log_A_real", log_A_real, lr)
-        self.register("A_imag", A_imag, lr)
+        self.log_A_real = nn.Parameter(log_A_real)
+        # self.register("log_A_real", log_A_real, lr)
+        self.A_imag = nn.Parameter(A_imag)
+        # self.register("A_imag", A_imag, lr)
 
         B = torch.ones((input_dim, n_states_per_input)) + 0j
-        self.register("B", B, lr)
+        self.B = nn.Parameter(B)
+        # self.register("B", B, lr)
 
         C = torch.rand(input_dim, n_states_per_input // 2) + 1j * torch.rand(
             input_dim, n_states_per_input // 2
         )
-        self.register("C", C, lr)
+        self.C = nn.Parameter(C)
+        # self.register("C", C, lr)
 
     def discretize(self, log_dt, log_A_real, A_imag, B):
 
@@ -57,18 +62,18 @@ class S4D_rnn(nn.Module):
 
         return dA, dB
 
-    def register(self, name, tensor, lr=None):
-        """Register a tensor with a configurable learning rate and 0 weight decay"""
+    # def register(self, name, tensor, lr=None):
+    #     """Register a tensor with a configurable learning rate and 0 weight decay"""
 
-        if lr == 0.0:
-            self.register_buffer(name, tensor)
-        else:
-            self.register_parameter(name, nn.Parameter(tensor))
+    #     if lr == 0.0:
+    #         self.register_buffer(name, tensor)
+    #     else:
+    #         self.register_parameter(name, nn.Parameter(tensor))
 
-            optim = {"weight_decay": 0.0}
-            if lr is not None:
-                optim["lr"] = lr
-            setattr(getattr(self, name), "_optim", optim)
+    #         optim = {"weight_decay": 0.0}
+    #         if lr is not None:
+    #             optim["lr"] = lr
+    #         setattr(getattr(self, name), "_optim", optim)
 
     def forward(self, us, rnn=True):
         # num_dimensions is the number of dimensions in the input
@@ -168,11 +173,12 @@ class S4DMinimal(nn.Module):
         d_state,
         dropout=0.0,
         prenorm=False,
-        expansion=4,
+        mlp_hidden=None,
         noC=False,
         seed=10,
     ):
         super().__init__()
+
         self.noC = noC
         self.prenorm = prenorm
         self.encoder = nn.Linear(input_dim, d_model)
@@ -184,15 +190,18 @@ class S4DMinimal(nn.Module):
         else:
             self.dm = d_model
 
+        if mlp_hidden is None:
+            mlp_hidden = 4*self.dm
+
         self.norm = nn.LayerNorm(self.dm) if not prenorm else nn.LayerNorm(d_model)
 
         # self.decoder = nn.Linear(dm,input_dim)
 
         self.decoder = nn.Sequential(
-            nn.Linear(self.dm, expansion * self.dm),
-            nn.ReLU(),
+            nn.Linear(self.dm, mlp_hidden),
+            nn.GELU(),
             nn.Dropout(dropout),
-            nn.Linear(expansion * self.dm, input_dim),
+            nn.Linear(mlp_hidden, input_dim),
         )
 
         self.rnn = False

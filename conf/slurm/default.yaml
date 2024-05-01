@@ -8,7 +8,7 @@ hydra:
     gpus_per_task: 1
     tasks_per_node: 1
     nodes: 1
-    mem_gb: 64
+    mem_gb: 128
     partition: normal
     # additional_parameters:
       # mail-user: ostrow@mit.edu

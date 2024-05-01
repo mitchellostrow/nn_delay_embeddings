@@ -102,7 +102,7 @@ class LRUMinimal(nn.Module):
         input_dim,
         d_model,  # dimensionality of the embedding
         d_state=None,  # dimensionality of the state space
-        expansion=4,
+        mlp_hidden=None,
         rmin=0.8,
         rmax=0.99,
         dropout=0.0,
@@ -110,6 +110,9 @@ class LRUMinimal(nn.Module):
         super().__init__()
         if d_state is None:
             d_state = d_model
+        if mlp_hidden is None:
+            mlp_hidden = 4*d_model
+
         self.encoder = nn.Linear(input_dim, d_model)
 
         self.layernorm = nn.LayerNorm(d_model)
@@ -117,11 +120,11 @@ class LRUMinimal(nn.Module):
         self.lru = LRUBlock(d_model, d_state, rmin=rmin, rmax=rmax)
 
         self.mlp = nn.Sequential(
-            nn.Linear(d_model, d_model * expansion),
+            nn.Linear(d_model, mlp_hidden),
             nn.GELU(),
-            nn.Linear(d_model * expansion, d_model),
+            nn.Dropout(dropout),
+            nn.Linear(mlp_hidden, input_dim),
         )
-        self.decoder = nn.Linear(d_model, input_dim)
         self.rnn = False
 
     def eval(self):
@@ -138,5 +141,4 @@ class LRUMinimal(nn.Module):
         x = self.layernorm(x)
         hiddens, x = self.lru(x, rnn=self.rnn)
         x = self.mlp(x)
-        x = self.decoder(x)
         return x, hiddens

@@ -4,7 +4,7 @@ kwargs:
   d_model: 10
   d_state: 100
   dropout: 0.0
-  expansion: 4
+  mlp_hidden: 40
   rmin: 0.8
   rmax: 0.99
   

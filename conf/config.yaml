@@ -8,13 +8,13 @@ attractor:
   name: Lorenz
   driven_noise: 0.0
   dt: 0.01
-  observed_noise: 0.00
+  observed_noise: 0.05
   dim_observed: 0
-  resample: False
+  resample: True
   # timescale: 0.01 #if resample is False, we need to pick this. TODO: implement
 
 data:
-  time: 1000
+  time: 100
   nsamples: 1000
   batch_size: 32
 
@@ -40,16 +40,16 @@ eval:
   neighbors_comparison:
     n_neighbors: 25
   dyn_quants:
-    traj_length: 1000
+    traj_length: 100
     ntrajs: 10
     rtol: 1e-3
     atol: 1e-10
   predict_hiddens:
     linear_model_kwargs:
-      l1_ratio: 0.5 
+      l1_ratio: 0.0 
       alpha: 1e-1 
       max_iter: 2000
-    mlp_model_kwargs:
+    mlp_kwargs:
       hidden_layer_sizes: [300]
       alpha: 1e-4
       max_iter: 2000
@@ -57,6 +57,7 @@ eval:
   dsa:
     n_delays: [100,10]
     rank: 100
+    pca_dim:  #blank if none
     delay_interval: 1
     lr: 5e-3
     iters: 1500

@@ -17,9 +17,10 @@ import numpy as np
 import torch
 from copy import deepcopy
 from sklearn.neighbors import NearestNeighbors
-from sklearn.linear_model import ElasticNetCV, ElasticNet
+from sklearn.linear_model import ElasticNet
 from sklearn.model_selection import train_test_split
-from sklearn.neural_network import MLPRegressor
+from skccm import CCM
+from skccm.utilities import train_test_split
 
 
 def mae(x, y):
@@ -243,7 +244,9 @@ def compute_all_pred_stats(true_vals, pred_vals, rank, norm=True):
 def calc_lyap(traj1, traj2, eps_max, tvals):
     separation = np.linalg.norm(traj1 - traj2, axis=1) / np.linalg.norm(traj1, axis=1)
     cutoff_index = np.where(separation < eps_max)[0]
-    import pdb; pdb.set_trace()
+    import pdb
+
+    pdb.set_trace()
     if len(cutoff_index) > 0:
         cutoff_index = cutoff_index[-1]
     else:
@@ -439,21 +442,24 @@ def compute_dynamic_quantities(
 
     return attractor_stats, model_stats
 
-def tail_biting_comparison(model,attractor,nsteps,traj_length,traj_length,resample=False):
-    #run the model in a tailbiting fashion and compute the dynamic quantities on the 
-    #predicted value
+
+def tail_biting_comparison(
+    model, attractor, nsteps, traj_length, ntrajs, resample=False
+):
+    # run the model in a tailbiting fashion and compute the dynamic quantities on the
+    # predicted value
     pass
 
 
-
-def neighbors_comparison(true, embedded, n_neighbors=5):
-    if true.ndim == 3: 
+def neighbors_comparison(true, embedded, n_neighbors=5,geodesic_dist=False):
+    if true.ndim == 3:
         true = true.reshape(-1, true.shape[-1])
     if embedded.ndim == 3:
         embedded = embedded.reshape(-1, embedded.shape[-1])
 
     if np.iscomplex(embedded).any():
         embedded = np.hstack([embedded.real, embedded.imag])
+    
     # nearest neighbors in the original space
     nn_orig = NearestNeighbors(n_neighbors=n_neighbors).fit(true)
     distances_orig, indices_orig = nn_orig.kneighbors(true)
@@ -468,13 +474,27 @@ def neighbors_comparison(true, embedded, n_neighbors=5):
         for i in range(len(true))
     ]
 
-    # Compare distance correlations
-    correlation_coefficients = [
-        np.corrcoef(distances_orig[i], distances_embed[i])[0, 1]
-        for i in range(len(true))
-    ]
+    # Convergent Cross Mapping: try and predict X from the mappings from X to Y via nearest neighbors
+    #for each embedded, map back to true and find the n nearest neighbors. Then, find their mapping back in the embedded space
+    #and try and predict the original point from the mapping back to the original space
+    x1tr, x1te, x2tr, x2te = train_test_split(true,embedded, percent=.75)
 
-    return np.mean(jaccard_indices), np.mean(correlation_coefficients)
+    ccm = CCM() #initiate the class
+
+    #library lengths to test
+    len_tr = len(x1tr)
+    lib_lens = np.arange(10, len_tr, len_tr/20, dtype='int')
+
+    #test causation
+    ccm.fit(x1tr,x2tr)
+    x1p, x2p = ccm.predict(x1te, x2te,lib_lengths=lib_lens)
+
+    sc1,sc2 = ccm.score()
+    #sc1 = score of predicting x1 from x2
+    #sc2 = score of predicting x2 from x1 -> x1 is lowd so let's dothis
+
+    return np.mean(jaccard_indices),sc2
+
 
 def gp_diff_asym(true, embedded, standardize=True):
     # generalization of dysts gpdistance for comparison of trajecotries
@@ -520,4 +540,4 @@ def predict_hidden_dims(true, embedded, dim_observed, model=ElasticNet, **model_
 
     model.fit(X_train, y_train)
 
-    return model.score(X_train, y_train), model.score(X_test, y_test),model
+    return model.score(X_train, y_train), model.score(X_test, y_test), model

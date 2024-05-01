@@ -14,7 +14,7 @@ from sklearn.decomposition import PCA
 import io
 import numpy as np
 from sklearn.linear_model import ElasticNet
-from sklearn.neural_netowrk import MLPRegressor
+from sklearn.neural_network import MLPRegressor
 
 # -- run all of the above functions and plot?
 
@@ -26,6 +26,7 @@ def eval_embedding(
     dim_observed = cfg.attractor.dim_observed
     x = x.cpu().detach().numpy()
     y = y.cpu().detach().numpy()
+
     y_pred = y_pred.cpu().detach().numpy()
     hiddens = hiddens.cpu().detach().numpy()
     if np.iscomplex(hiddens).any():
@@ -72,7 +73,11 @@ def eval_embedding(
         print("predicting hidden dimensions of attractor from embedding")
 
     train_score, test_score, classifier = predict_hidden_dims(
-        full_data, hiddens, dim_observed,model=ElasticNet, **eval_cfg.predict_hiddens.linear_model_kwargs
+        full_data,
+        hiddens,
+        dim_observed,
+        model=ElasticNet,
+        **eval_cfg.predict_hiddens.linear_model_kwargs,
     )
     wandb.log(
         dict(
@@ -81,24 +86,20 @@ def eval_embedding(
         )
     )
 
-    # # MLP
-    train_score, test_score, classifier = predict_hidden_dims(
-        full_data, hiddens, dim_observed,model=MLPRegressor, **eval_cfg.predict_hiddens.mlp_kwargs
-    )
-    wandb.log(
-        dict(
-            mlp_predict_attractor_train_score=train_score,
-            mlp_predict_attractor_test_score=test_score,
-        )
-    ) 
-
-    # if verbose:
-    #     print("computing DSA")
-    # # DSA
-    # dsa_cfg = eval_cfg.dsa
-    # dsa = DSA(full_data, hiddens, **dict(dsa_cfg))
-    # score = dsa.fit_score()  # only 1 comparison so look at that
-    # wandb.log(dict(dsa=score))
+    # # # MLP
+    # train_score, test_score, classifier = predict_hidden_dims(
+    #     full_data,
+    #     hiddens,
+    #     dim_observed,
+    #     model=MLPRegressor,
+    #     **eval_cfg.predict_hiddens.mlp_kwargs,
+    # )
+    # wandb.log(
+    #     dict(
+    #         mlp_predict_attractor_train_score=train_score,
+    #         mlp_predict_attractor_test_score=test_score,
+    #     )
+    # )
 
     # plot the attractor and model trajectories in top n dimensions -- with 2 plots that plot dimension i against dimension j
     # for i,j in the top n dimensions
@@ -107,6 +108,25 @@ def eval_embedding(
 
     # run_plot_pca(full_data, "attractor")
     run_plot_pca(hiddens, "model embedding")
+    # if verbose:
+    #     print("computing DSA")
+    # # DSA
+    # dsa_cfg = eval_cfg.dsa
+
+    # if dsa_cfg.pca_dim is not None:
+    #     def reduce(x,n_components):
+    #         pca = PCA(n_components=n_components)
+    #         d = x.reshape(-1, x.shape[-1])
+    #         red = pca.fit_transform(d)
+    #         x = red.reshape(x.shape[0], x.shape[1], n_components) 
+    #         return x
+    #     full_data = reduce(full_data, dsa_cfg.pca_dim)
+    #     hiddens = reduce(hiddens,dsa_cfg.pca_dim)
+    # dsa = DSA(full_data, hiddens, **dict(dsa_cfg))
+    # score = dsa.fit_score()  # only 1 comparison so look at that
+    # wandb.log(dict(dsa=score))
+
+    
 
 
 # flatten top 2 dimensions of full_data and hiddens, run pca
@@ -120,7 +140,7 @@ def run_plot_pca(data, label):
     for i in range(4):
         for j in range(4):
             for k in range(4):
-                ax[i, j].plot(red[k, :,i], red[k, :, j])
+                ax[i, j].plot(red[k, :, i], red[k, :, j])
             ax[i, j].set_xlabel(f"dim {i+1}, EV {pca.explained_variance_ratio_[i]:.2f}")
             ax[i, j].set_ylabel(f"dim {j+1}, EV {pca.explained_variance_ratio_[j]:.2f}")
 

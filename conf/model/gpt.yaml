@@ -3,7 +3,8 @@ kwargs:
   input_dim: 1
   d_model: 100
   n_head: 4
-  context_length: 1000 
+  context_length: 100 
+  mlp_hidden: 200
   seed: 10
   temp:
-  use_pe: True
+  use_pe: False
