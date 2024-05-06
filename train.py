@@ -59,10 +59,12 @@ def gen_data(cfg):
     nsamples = cfg.data.nsamples
     time = cfg.data.time
 
-    model.ic = model.ic[None, :] * np.random.random(nsamples)[:, None]
+    model.ic = model.ic[None, :] * 5 * np.random.random(nsamples)[:, None] #getting arbitrary dispersion
     data = model.make_trajectory(
-        time, resample=cfg.attractor.resample, noise=cfg.attractor.driven_noise
+        time+100, resample=cfg.attractor.resample, noise=cfg.attractor.driven_noise
     )
+    data = data[:, 100:] #filter out the transient
+    
     data += np.random.randn(*data.shape) * cfg.attractor.observed_noise
     # plot x and delay embedded x and y
     fig, ax = plt.subplots(1, 2, figsize=(10, 10))
@@ -150,11 +152,12 @@ def train(
                 x = x.to(device)
                 y = y.to(device)
                 y_pred, hiddens = model(x)
+
                 # run the evals here
                 # need to get the full state space of x
                 eval_embedding(attractor, model, data[:, :-1], y, y_pred, hiddens, cfg)
 
-                eval_nstep(model, data, cfg)
+                eval_nstep(model, data, cfg,epoch)
 
                 loss = loss_fn(y_pred, y)
                 val_loss = loss.item()

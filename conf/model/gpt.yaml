@@ -4,7 +4,7 @@ kwargs:
   d_model: 100
   n_head: 4
   context_length: 100 
-  mlp_hidden: 200
+  mlp_hidden: 
   seed: 10
   temp:
   use_pe: False

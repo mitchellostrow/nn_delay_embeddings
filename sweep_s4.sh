@@ -10,4 +10,4 @@
 unset XDG_RUNTIME_DIR
 source activate nn_delays
 
-python train.py -m model=s4 model.kwargs.d_model=10,20,30 model.kwargs.d_state=50,100 model.kwargs.mlp_hidden=40,80,120 train.schedule=True model.kwargs.noC=True,False
+python train.py -m model=s4 model.kwargs.d_model=10,25,50,100 model.kwargs.d_state=10,25,50,100 model.kwargs.mlp_hidden=10,25,40,50,80,120,200 train.schedule=True model.kwargs.noC=True,False

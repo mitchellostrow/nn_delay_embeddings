@@ -288,8 +288,8 @@ def compute_LE_model(
         traj_length=max(traj_length, n_samples),
         pts_per_period=15,
     )
-    eps_attractor = 1e-3
-    eps_model = 1e-2
+    eps_attractor = 1e-5
+    eps_model = 1e-5
     eps_max = rtol
     all_lyap_eq = []
     all_cutoffs_eq = []

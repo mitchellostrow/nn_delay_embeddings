@@ -67,7 +67,7 @@ def eval_embedding(attractor, model, full_data, y, y_pred, hiddens, cfg, verbose
             dict(neighbors_overlap=overlap_neighb, neighbors_correlation=corr_neighb)
         )
 
-    if "gp_diff_asym" in cfg.eval.metrics:
+    if "gp_diff_asym" in cfg.eval.metrics and not np.isnan(model_stats['model_estim_lyap']):
         # GP distance
         if verbose:
             print("computing grassberg-proccacia similarity")
@@ -134,13 +134,13 @@ def eval_embedding(attractor, model, full_data, y, y_pred, hiddens, cfg, verbose
 
             full_data = reduce(full_data, dsa_cfg.pca_dim)
             hiddens = reduce(hiddens, dsa_cfg.pca_dim)
-        del dsa_cfg.pca_dim  # not a keyword in dsa
-        dsa = DSA(full_data, hiddens, **dict(dsa_cfg))
+        dss_cfg = {k:v for k,v in dict(dsa_cfg).items() if k != "pca_dim"}
+        dsa = DSA(full_data, hiddens, **dss_cfg)
         score = dsa.fit_score()  # only 1 comparison so look at that
         wandb.log(dict(dsa=score))
 
 
-def eval_nstep(model, data, cfg):
+def eval_nstep(model, data, cfg,epoch):
     # runs the model for n steps and compares the output to the true data
     # both predictively and statistically
     dim_observed = cfg.attractor.dim_observed
@@ -148,14 +148,19 @@ def eval_nstep(model, data, cfg):
     n = cfg.eval.nstep_eval.nsteps
     device = next(model.parameters()).device
     x = data[:, :-n]
-    for i in range(1, n + 1):
+    observed = np.linspace(1, n + 1,cfg.eval.nstep_eval.n_obs,dtype=int)
+    plt.figure()
+    plt.plot(data[0,:,0],label="true",c="k")
+    for i in range(1,n+1): #only observe a few 
         x = x.to(device)
         y_pred, hiddens = model(x)
         tn = i - n if i - n < 0 else None
         y_i = data[:, i:tn]
         x = y_pred.detach()
+        if i in observed:
+            #plot y_i and y_pred over time, index starting from i, 
+            plt.plot(np.arange(i,i+y_pred.shape[1]),y_pred[0,:,0].cpu().detach().numpy(),label=f"{i}-step pred")
 
-        if i > 1:
             model_dim = hiddens.shape[-1]
             pred_stats = compute_all_pred_stats(y_i, y_pred.detach().cpu(), model_dim)
             for k in pred_stats:
@@ -166,14 +171,21 @@ def eval_nstep(model, data, cfg):
             wandb.log({f"{i}_step_kl_div": kldiv})
 
             # correlation between fourier spectra
-            spectral_corr = power_spectrum_error_per_dim(
+            spectral_corr = np.mean(power_spectrum_error_per_dim(
                 y_pred.detach().cpu(),
                 y_i,
                 cfg.eval.nstep_eval.spectral_smoothing,
                 cfg.eval.nstep_eval.spectral_cutoff,
-            )
+            ))
             wandb.log({f"{i}_step_spectral_corr": spectral_corr})
-
+    
+    plt.xlabel("timestep")
+    plt.ylabel("x")
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(f"nstep_eval_epoch{epoch}.pdf")
+    wandb.log({"nstep_eval": plt})
+    plt.close()
 
 # flatten top 2 dimensions of full_data and hiddens, run pca
 def run_plot_pca(data, label):
@@ -185,10 +197,10 @@ def run_plot_pca(data, label):
     fig, ax = plt.subplots(4, 4, figsize=(15, 15))
     for i in range(4):
         for j in range(4):
-            for k in range(4):
+            for k in range(min(30,data.shape[0])):
                 ax[i, j].plot(red[k, :, i], red[k, :, j])
-            ax[i, j].set_xlabel(f"dim {i+1}, EV {pca.explained_variance_ratio_[i]:.2f}")
-            ax[i, j].set_ylabel(f"dim {j+1}, EV {pca.explained_variance_ratio_[j]:.2f}")
+            ax[i, j].set_xlabel(f"dim {i+1}, EV {pca.explained_variance_ratio_[i]:.4f}")
+            ax[i, j].set_ylabel(f"dim {j+1}, EV {pca.explained_variance_ratio_[j]:.4f}")
 
     fig.suptitle(label)
     plt.tight_layout()
@@ -199,7 +211,7 @@ def run_plot_pca(data, label):
 
 
     #plot 2d isomap too!
-    red = Isomap(n_components=2,n_neighbors=5).fit_transform(d)
+    red = Isomap(n_components=2,n_neighbors=15).fit_transform(d)
     red = red.reshape(data.shape[0],data.shape[1],2)
     for k in range(4):
         plt.plot(red[k,:,0],red[k,:,1])
@@ -208,6 +220,7 @@ def run_plot_pca(data, label):
     plt.tight_layout()
     plt.savefig(f"{label}_isomap.pdf")
     wandb.log({f"{label}_isomap": plt})
+    plt.close()
     
 
 
