@@ -184,7 +184,7 @@ def eval_nstep(model, data, cfg,epoch):
     plt.legend()
     plt.tight_layout()
     plt.savefig(f"nstep_eval_epoch{epoch}.pdf")
-    wandb.log({"nstep_eval": plt})
+    # wandb.log({"nstep_eval": plt})
     plt.close()
 
 # flatten top 2 dimensions of full_data and hiddens, run pca
@@ -206,7 +206,7 @@ def run_plot_pca(data, label):
     plt.tight_layout()
     plt.savefig(f"{label}.pdf")
     # save in wandb
-    wandb.log({label: plt})
+    # wandb.log({label: plt})
     plt.close()
 
 
@@ -219,7 +219,7 @@ def run_plot_pca(data, label):
     plt.ylabel("Isomap 2")
     plt.tight_layout()
     plt.savefig(f"{label}_isomap.pdf")
-    wandb.log({f"{label}_isomap": plt})
+    # wandb.log({f"{label}_isomap": plt})
     plt.close()
     
 

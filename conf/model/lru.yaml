@@ -7,4 +7,5 @@ kwargs:
   mlp_hidden: 
   rmin: 0.8
   rmax: 0.99
+  siso: False
   
