@@ -67,3 +67,67 @@ def make_dataset(system, length, nsamples):
     val_set, val_data = gen_data()
 
     return train_set, val_set, train_data, val_data
+
+
+
+def embed_signal_torch(data, n_delays, delay_interval=1):
+    """
+    Create a delay embedding from the provided tensor data.
+
+    Parameters
+    ----------
+    data : torch.tensor
+        The data from which to create the delay embedding. Must be either: (1) a
+        2-dimensional array/tensor of shape T x N where T is the number
+        of time points and N is the number of observed dimensions
+        at each time point, or (2) a 3-dimensional array/tensor of shape
+        K x T x N where K is the number of "trials" and T and N are
+        as defined above.
+
+    n_delays : int
+        Parameter that controls the size of the delay embedding. Explicitly,
+        the number of delays to include.
+
+    delay_interval : int
+        The number of time steps between each delay in the delay embedding. Defaults
+        to 1 time step.
+    """
+    if isinstance(data, np.ndarray):
+        data = torch.from_numpy(data)
+    device = data.device
+
+    if data.shape[int(data.ndim == 3)] - (n_delays - 1) * delay_interval < 1:
+        raise ValueError(
+            "The number of delays is too large for the number of time points in the data!"
+        )
+
+    # initialize the embedding
+    if data.ndim == 3:
+        embedding = torch.zeros(
+            (
+                data.shape[0],
+                data.shape[1] - (n_delays - 1) * delay_interval,
+                data.shape[2] * n_delays,
+            )
+        ).to(device)
+    else:
+        embedding = torch.zeros(
+            (data.shape[0] - (n_delays - 1) * delay_interval, data.shape[1] * n_delays)
+        ).to(device)
+
+    for d in range(n_delays):
+        index = (n_delays - 1 - d) * delay_interval
+        ddelay = d * delay_interval
+
+        if data.ndim == 3:
+            ddata = d * data.shape[2]
+            embedding[:, :, ddata : ddata + data.shape[2]] = data[
+                :, index : data.shape[1] - ddelay
+            ]
+        else:
+            ddata = d * data.shape[1]
+            embedding[:, ddata : ddata + data.shape[1]] = data[
+                index : data.shape[0] - ddelay
+            ]
+
+    return embedding

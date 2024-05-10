@@ -5,7 +5,7 @@
 #SBATCH --time=2-0:00:00
 #SBATCH --mem=2GB
 #SBATCH --partition=normal
-#SBATCH --gres=gpu:1
+#SBATCH --gres=gpu:0
 
 unset XDG_RUNTIME_DIR
 source activate nn_delays
