@@ -94,23 +94,27 @@ class LRUBlock(nn.Module):
 
         return x, y
 
+
 class SISOLRUBlock(nn.Module):
-    #runs the LRU in a single input single output fashion, 1 per dimension
+    # runs the LRU in a single input single output fashion, 1 per dimension
     def __init__(self, input_dim, d_state, rmin=0.8, rmax=0.99):
         super().__init__()
         self.input_dim = input_dim
 
-        self.lrus = nn.ModuleList([LRUBlock(1, d_state,rmin=rmin,rmax=rmax) for _ in range(input_dim)])
+        self.lrus = nn.ModuleList(
+            [LRUBlock(1, d_state, rmin=rmin, rmax=rmax) for _ in range(input_dim)]
+        )
 
     def forward(self, inputs, rnn=False):
         hiddens = []
         outputs = []
         for i in range(self.input_dim):
-            hidden, output = self.lrus[i](inputs[..., i:i+1], rnn=rnn)
+            hidden, output = self.lrus[i](inputs[..., i : i + 1], rnn=rnn)
             hiddens.append(hidden)
             outputs.append(output)
 
         return torch.cat(hiddens, -1), torch.cat(outputs, -1)
+
 
 class LRUMinimal(nn.Module):
     # a 1-layer LRU!

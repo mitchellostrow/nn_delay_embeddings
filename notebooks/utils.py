@@ -15,11 +15,11 @@ def train(model, train_set, val_set, epochs, lr, optimizer, loss_fn, device, nst
     optimizer = optimizer(model.parameters(), lr=lr)
     train_loss = []
     val_losses = []
+
     for epoch in tqdm(range(epochs)):
         model.train()
         total_loss = 0
         for i, data in enumerate(train_set):
-
             x = data[:, :-nsteps]
             y = data[:, nsteps:]
 
@@ -51,23 +51,32 @@ def train(model, train_set, val_set, epochs, lr, optimizer, loss_fn, device, nst
     return model, train_loss, val_losses
 
 
-def make_dataset(system, length, nsamples):
+def make_dataset(
+    system, length, nsamples, obs_noise=0.0, batch_size=1, resample=False, dt=None
+):
     # convert these into dataloaders
 
     def gen_data():
         model = system()
-        model.ic = model.ic[None, :] * np.random.random(nsamples)[:, None]
-        data = model.make_trajectory(length, resample=True)
-        data_used = torch.tensor(data).float()[:, :, :1]
+        if dt is not None:
+            model.dt = dt
+        model.ic = (
+            model.ic[None, :] * 2 * np.random.random(nsamples)[:, None]
+        )  # 10* because we need a wider spread
+        data = model.make_trajectory(
+            length + 200, resample=resample
+        )  # add 100 for washout of relaxation
+        data += np.random.normal(0, obs_noise, data.shape)
+        data_used = torch.tensor(data).float()[:, 200:, :1]
         print(data.shape, data_used.shape)
-        loader = DataLoader(data_used, batch_size=1, shuffle=True)
+
+        loader = DataLoader(data_used, batch_size=batch_size, shuffle=True)
         return loader, data
 
     train_set, train_data = gen_data()
     val_set, val_data = gen_data()
 
     return train_set, val_set, train_data, val_data
-
 
 
 def embed_signal_torch(data, n_delays, delay_interval=1):
