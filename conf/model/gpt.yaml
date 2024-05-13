@@ -1,9 +1,9 @@
 model_name: GPT
 kwargs:
   input_dim: 1
-  d_model: 100
-  n_head: 4
-  context_length: 100 
+  d_model: 10
+  n_head: 1
+  context_length: 500
   mlp_hidden: 
   seed: 10
   temp:

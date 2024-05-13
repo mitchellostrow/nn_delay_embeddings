@@ -127,9 +127,11 @@ class LRUMinimal(nn.Module):
         siso=False,
         rmin=0.8,
         rmax=0.99,
+        seed=10,
         dropout=0.0,
     ):
         super().__init__()
+        torch.manual_seed(seed)
         if d_state is None:
             d_state = d_model
         if mlp_hidden is None:
@@ -140,7 +142,9 @@ class LRUMinimal(nn.Module):
         self.layernorm = nn.LayerNorm(d_model)
 
         if not siso:
-            self.lru = LRUBlock(d_model, d_state, rmin=rmin, rmax=rmax)
+            self.lru = LRUBlock(
+                d_model, d_state, output_dim=d_model, rmin=rmin, rmax=rmax
+            )
         else:
             self.lru = SISOLRUBlock(d_model, d_state, rmin=rmin, rmax=rmax)
 

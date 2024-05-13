@@ -19,6 +19,7 @@ import sys
 
 sys.path.append("/om2/user/ostrow/NN_delay_embeddings/nn_delay_embeddings/src")
 from src.models import RNN, Mamba, S4, GPT, LRU
+from src.amplification import compute_noise_amp_k
 from evals import eval_embedding, eval_nstep
 from tqdm import tqdm
 
@@ -63,17 +64,18 @@ def gen_data(cfg):
         model.ic[None, :] * 5 * np.random.random(nsamples)[:, None]
     )  # getting arbitrary dispersion
     data = model.make_trajectory(
-        time + 100, resample=cfg.attractor.resample, noise=cfg.attractor.driven_noise
+        time + 200, resample=cfg.attractor.resample, noise=cfg.attractor.driven_noise
     )
-    data = data[:, 100:]  # filter out the transient
+    data = data[:, 200:]  # filter out the transient
 
     data += np.random.randn(*data.shape) * cfg.attractor.observed_noise
     # plot x and delay embedded x and y
     fig, ax = plt.subplots(1, 2, figsize=(10, 10))
-    for i in range(min(100, data.shape[0])):
-        ax[0].scatter(data[i, :, 0], data[i, :, 1], c="k", alpha=0.5)
+    for i in range(min(15, data.shape[0])):
+        ax[0].plot(data[i, :, 0], data[i, :, 1], c="k", alpha=0.5)
         ax[1].plot(data[i, :, cfg.attractor.dim_observed])
     plt.savefig("attractor.png")
+    plt.close()
 
     data = torch.tensor(data).float()
 
@@ -159,13 +161,28 @@ def train(
                 # need to get the full state space of x
                 eval_embedding(attractor, model, data[:, :-1], y, y_pred, hiddens, cfg)
 
-                eval_nstep(model, data, cfg, epoch)
+                if "eval_nstep" in cfg.eval.metrics:
+                    eval_nstep(model, data, cfg, epoch)
 
                 loss = loss_fn(y_pred, y)
                 val_loss = loss.item()
                 val_losses.append(val_loss)
 
                 wandb.log({"val_loss": val_loss / len(val_set)})
+                print(f"Epoch {epoch} Validation Loss: {val_loss/len(val_set)}")
+
+                sig, E_k, eps_k = compute_noise_amp_k(
+                    x,
+                    hiddens,
+                    cfg.eval.noise_amp.k,
+                    cfg.eval.noise_amp.maxT,
+                    normalize=cfg.eval.noise_amp.normalize,
+                )
+                wandb.log({"noise_amplification": sig})
+                wandb.log({f"E^2_{cfg.eval.noise_amp.k}": E_k})
+                wandb.log({f"eps^2_{cfg.eval.noise_amp.k}": eps_k})
+                print(f"Epoch {epoch} amplification: {sig}")
+                print(f"Epoch {epoch} E^2_{cfg.eval.noise_amp.k}: {E_k}")
 
                 print(f"Epoch {epoch} Validation Loss: {val_loss/len(val_set)}")
     return model, train_loss, val_losses

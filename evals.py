@@ -219,16 +219,16 @@ def run_plot_pca(data, label):
     plt.close()
 
     # plot 2d isomap too!
-    red = Isomap(n_components=2, n_neighbors=15).fit_transform(d)
-    red = red.reshape(data.shape[0], data.shape[1], 2)
-    for k in range(4):
-        plt.plot(red[k, :, 0], red[k, :, 1])
-    plt.xlabel("Isomap 1")
-    plt.ylabel("Isomap 2")
-    plt.tight_layout()
-    plt.savefig(f"{label}_isomap.pdf")
-    # wandb.log({f"{label}_isomap": plt})
-    plt.close()
+    # red = Isomap(n_components=2, n_neighbors=15).fit_transform(d)
+    # red = red.reshape(data.shape[0], data.shape[1], 2)
+    # for k in range(100):
+    #     plt.plot(red[k, :, 0], red[k, :, 1])
+    # plt.xlabel("Isomap 1")
+    # plt.ylabel("Isomap 2")
+    # plt.tight_layout()
+    # plt.savefig(f"{label}_isomap.pdf")
+    # # wandb.log({f"{label}_isomap": plt})
+    # plt.close()
 
 
 # the following functions were adapted from https://github.com/DurstewitzLab/dendPLRNN/blob/main/BPTT_TF/evaluation/

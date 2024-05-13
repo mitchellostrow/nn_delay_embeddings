@@ -1,5 +1,5 @@
 defaults:
-  - model: gpt
+  - model: lru
   - slurm: default
   - _self_
 
@@ -8,24 +8,24 @@ attractor:
   name: Lorenz
   driven_noise: 0.0
   dt: 0.01
-  observed_noise: 0.05
+  observed_noise: 0.01
   dim_observed: 0
   resample: False
 
 data:
-  time: 100
-  nsamples: 5000
+  time: 500
+  nsamples: 1000
   batch_size: 32
 
 train:
   optimizer: AdamW
-  lr: 0.005
+  lr: 0.001
   weight_decay: 0.01
   epochs: 10000
   loss: MSE
   nsteps: 1 #train on nstep prediction
   eval_nsteps: 100
-  schedule: True
+  schedule: False
 
 eval: 
   nstep_eval: 
@@ -36,15 +36,21 @@ eval:
     spectral_cutoff: 200
   metrics: [ 
     compute_all_pred_stats,
-    compute_dynamic_quantities,
+    # eval_nstep,
+    # compute_dynamic_quantities,
     neighbors_comparison,
     # gp_diff_asym,
-    predict_hidden_dims_lm,
+    # predict_hidden_dims_lm,
     predict_hidden_dims_mlp,
-    dsa
+    # dsa,
+    noise_amplification
     ]
   neighbors_comparison:
-    n_neighbors: 50
+    n_neighbors: 20
+  noise_amp:
+    k: 4
+    maxT: 20
+    normalize: True
   dyn_quants:
     traj_length: 100
     ntrajs: 10
