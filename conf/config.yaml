@@ -8,39 +8,39 @@ attractor:
   name: Lorenz
   driven_noise: 0.0
   dt: 0.01
-  observed_noise: 0.01
+  observed_noise: 0.05
   dim_observed: 0
   resample: False
 
 data:
   time: 500
   nsamples: 1000
-  batch_size: 32
+  batch_size: 10
 
 train:
   optimizer: AdamW
   lr: 0.001
-  weight_decay: 0.01
-  epochs: 10000
+  weight_decay: 0.00
+  epochs: 500
   loss: MSE
   nsteps: 1 #train on nstep prediction
-  eval_nsteps: 100
+  eval_nsteps: 50
   schedule: False
 
 eval: 
   nstep_eval: 
-    nsteps: 40
-    n_obs: 5
+    nsteps: 20
+    n_obs: 4
     kl_bins: 100
     spectral_smoothing: 4
     spectral_cutoff: 200
   metrics: [ 
     compute_all_pred_stats,
-    # eval_nstep,
+    eval_nstep,
     # compute_dynamic_quantities,
     neighbors_comparison,
     # gp_diff_asym,
-    # predict_hidden_dims_lm,
+    predict_hidden_dims_lm,
     predict_hidden_dims_mlp,
     # dsa,
     noise_amplification
@@ -48,8 +48,8 @@ eval:
   neighbors_comparison:
     n_neighbors: 20
   noise_amp:
-    k: 4
-    maxT: 20
+    k: 3
+    maxT: 10
     normalize: True
   dyn_quants:
     traj_length: 100
