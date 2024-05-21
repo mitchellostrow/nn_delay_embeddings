@@ -53,7 +53,7 @@ class CosineWarmupScheduler(lr_scheduler._LRScheduler):
         return lr_factor
 
 
-def gen_data(cfg):
+def gen_data(cfg,plot=True):
     model = init_flow[cfg.attractor.name]()  # eval(cfg.attractor.name)()
     if cfg.attractor.dt is not None and cfg.attractor.dt not in {"none", "None"}:
         model.dt = cfg.attractor.dt
@@ -69,13 +69,14 @@ def gen_data(cfg):
     data = data[:, 200:]  # filter out the transient
 
     data += np.random.randn(*data.shape) * cfg.attractor.observed_noise
-    # plot x and delay embedded x and y
-    fig, ax = plt.subplots(1, 2, figsize=(10, 10))
-    for i in range(min(15, data.shape[0])):
-        ax[0].plot(data[i, :, 0], data[i, :, 1], c="k", alpha=0.5)
-        ax[1].plot(data[i, :, cfg.attractor.dim_observed])
-    plt.savefig("attractor.png")
-    plt.close()
+    if plot:
+        # plot x and delay embedded x and y
+        fig, ax = plt.subplots(1, 2, figsize=(10, 10))
+        for i in range(min(15, data.shape[0])):
+            ax[0].plot(data[i, :, 0], data[i, :, 1], c="k", alpha=0.5)
+            ax[1].plot(data[i, :, cfg.attractor.dim_observed])
+        plt.savefig("attractor.png")
+        plt.close()
 
     data = torch.tensor(data).float()
 

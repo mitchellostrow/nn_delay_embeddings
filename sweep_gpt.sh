@@ -10,4 +10,4 @@
 unset XDG_RUNTIME_DIR
 source activate nn_delays
 
-python train.py -m model=gpt model.kwargs.d_model=10,25,50,100 model.kwargs.n_head=1,2,5,10 model.kwargs.use_pe=False model.kwargs.mlp_hidden=10,25,50,100 model.kwargs.use_pe=True,False train.schedule=True attractor.observed_noise=0.001,0.01,0.1
+python train.py -m model=gpt model.kwargs.d_model=10,25,50,100 model.kwargs.n_head=1,2,5,10 model.kwargs.mlp_hidden=10,25,50,100 model.kwargs.use_pe=True,False train.schedule=True,False attractor.observed_noise=0.0
