@@ -1,5 +1,5 @@
 defaults:
-  - model: gpt
+  - model: lru
   - slurm: default
   - _self_
 
@@ -8,57 +8,73 @@ attractor:
   name: Lorenz
   driven_noise: 0.0
   dt: 0.01
-  observed_noise: 0.00
+  observed_noise: 0.05
   dim_observed: 0
   resample: False
-  # timescale: 0.01 #if resample is False, we need to pick this. TODO: implement
 
 data:
-  time: 1000
+  time: 500
   nsamples: 1000
-  batch_size: 32
+  batch_size: 10
 
 train:
   optimizer: AdamW
   lr: 0.001
-  weight_decay: 0.001
-  epochs: 2000
-  loss: nn.MSELoss
+  weight_decay: 0.00
+  epochs: 500
+  loss: MSE
   nsteps: 1 #train on nstep prediction
-  eval_nsteps: 100
-  schedule: True
+  eval_nsteps: 50
+  schedule: False
 
 eval: 
-  metrics: [ #TODO: use this
+  nstep_eval: 
+    nsteps: 20
+    n_obs: 4
+    kl_bins: 100
+    spectral_smoothing: 4
+    spectral_cutoff: 200
+  metrics: [ 
     compute_all_pred_stats,
-    compute_dynamic_quantities,
+    eval_nstep,
+    # compute_dynamic_quantities,
     neighbors_comparison,
-    gp_diff_asym,
-    predict_hidden_dims
-    dsa
+    # gp_diff_asym,
+    predict_hidden_dims_lm,
+    predict_hidden_dims_mlp,
+    # dsa,
+    noise_amplification
     ]
   neighbors_comparison:
-    n_neighbors: 25
+    n_neighbors: 20
+  noise_amp:
+    k: 3
+    maxT: 10
+    normalize: True
   dyn_quants:
-    traj_length: 1000
+    traj_length: 100
     ntrajs: 10
     rtol: 1e-3
     atol: 1e-10
   predict_hiddens:
-    model_kwargs:
-      l1_ratio: 0.5 
-      alpha: 1e-1 #TODO: figure out elasticnetCV
+    linear_model_kwargs:
+      l1_ratio: 0.4 
+      alpha: 1e-1 
       max_iter: 2000
-
+    mlp_kwargs:
+      hidden_layer_sizes: [100]
+      alpha: 1e-4
+      max_iter: 2000
   dsa:
-    n_delays: [100,10]
-    rank: 100
+    n_delays: [30,30]
+    rank: 90
+    pca_dim: 3 #blank if none
     delay_interval: 1
     lr: 5e-3
     iters: 1500
     device: cuda
-
-
     
+job:
+  chdir: True
 
 

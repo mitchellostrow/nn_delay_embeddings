@@ -169,6 +169,10 @@ class MinimalMamba(nn.Module):
             ys.append(y)
         y = torch.stack(ys, dim=1)  # shape (b, l, d_in)
         self.hiddens = torch.stack(self.hiddens, dim=1)
+        # flatten along last 2 axes
+        self.hiddens = self.hiddens.reshape(
+            self.hiddens.shape[0], self.hiddens.shape[1], -1
+        )
         y = y + u * D
 
         return y, self.hiddens

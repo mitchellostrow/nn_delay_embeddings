@@ -95,6 +95,27 @@ class LRUBlock(nn.Module):
         return x, y
 
 
+class SISOLRUBlock(nn.Module):
+    # runs the LRU in a single input single output fashion, 1 per dimension
+    def __init__(self, input_dim, d_state, rmin=0.8, rmax=0.99):
+        super().__init__()
+        self.input_dim = input_dim
+
+        self.lrus = nn.ModuleList(
+            [LRUBlock(1, d_state, rmin=rmin, rmax=rmax) for _ in range(input_dim)]
+        )
+
+    def forward(self, inputs, rnn=False):
+        hiddens = []
+        outputs = []
+        for i in range(self.input_dim):
+            hidden, output = self.lrus[i](inputs[..., i : i + 1], rnn=rnn)
+            hiddens.append(hidden)
+            outputs.append(output)
+
+        return torch.cat(hiddens, -1), torch.cat(outputs, -1)
+
+
 class LRUMinimal(nn.Module):
     # a 1-layer LRU!
     def __init__(
@@ -102,26 +123,37 @@ class LRUMinimal(nn.Module):
         input_dim,
         d_model,  # dimensionality of the embedding
         d_state=None,  # dimensionality of the state space
-        expansion=4,
+        mlp_hidden=None,
+        siso=False,
         rmin=0.8,
         rmax=0.99,
+        seed=10,
         dropout=0.0,
     ):
         super().__init__()
+        torch.manual_seed(seed)
         if d_state is None:
             d_state = d_model
+        if mlp_hidden is None:
+            mlp_hidden = 4 * d_model
+
         self.encoder = nn.Linear(input_dim, d_model)
 
         self.layernorm = nn.LayerNorm(d_model)
 
-        self.lru = LRUBlock(d_model, d_state, rmin=rmin, rmax=rmax)
+        if not siso:
+            self.lru = LRUBlock(
+                d_model, d_state, output_dim=d_model, rmin=rmin, rmax=rmax
+            )
+        else:
+            self.lru = SISOLRUBlock(d_model, d_state, rmin=rmin, rmax=rmax)
 
         self.mlp = nn.Sequential(
-            nn.Linear(d_model, d_model * expansion),
+            nn.Linear(d_model, mlp_hidden),
             nn.GELU(),
-            nn.Linear(d_model * expansion, d_model),
+            nn.Dropout(dropout),
+            nn.Linear(mlp_hidden, input_dim),
         )
-        self.decoder = nn.Linear(d_model, input_dim)
         self.rnn = False
 
     def eval(self):
@@ -138,5 +170,4 @@ class LRUMinimal(nn.Module):
         x = self.layernorm(x)
         hiddens, x = self.lru(x, rnn=self.rnn)
         x = self.mlp(x)
-        x = self.decoder(x)
         return x, hiddens

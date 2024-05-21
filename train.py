@@ -3,7 +3,9 @@
 import wandb
 import torch
 import torch.nn as nn
-from dysts.flows import *  # import all of the attractors
+from dysts import flows
+from dysts.flows import *
+import dysts
 import matplotlib.pyplot as plt
 import numpy as np
 import torch.nn.functional as F
@@ -13,12 +15,26 @@ from omegaconf import DictConfig
 from torch.utils.data import DataLoader
 from torch.optim import lr_scheduler
 from torch.optim import AdamW, Adam, SGD
-from src.models import *
-from evals import eval_embedding
+import sys
+
+sys.path.append("/om2/user/ostrow/NN_delay_embeddings/nn_delay_embeddings/src")
+from src.models import RNN, Mamba, S4, GPT, LRU
+from src.amplification import compute_noise_amp_k
+from evals import eval_embedding, eval_nstep
 from tqdm import tqdm
 
-
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+init_mod = {
+    "RNN": RNN,
+    "Mamba": Mamba,
+    "S4": S4,
+    "GPT": GPT,
+    "LRU": LRU,
+}  # bc eval wasn't working
+init_flow = {"Lorenz": Lorenz}
+init_optim = {"AdamW": AdamW}
+init_loss = {"MSE": nn.MSELoss}
+
 
 class CosineWarmupScheduler(lr_scheduler._LRScheduler):
     def __init__(self, optimizer, warmup, max_iters):
@@ -36,18 +52,31 @@ class CosineWarmupScheduler(lr_scheduler._LRScheduler):
             lr_factor *= epoch * 1.0 / self.warmup
         return lr_factor
 
+
 def gen_data(cfg):
-    model = eval(cfg.attractor.name)()
+    model = init_flow[cfg.attractor.name]()  # eval(cfg.attractor.name)()
     if cfg.attractor.dt is not None and cfg.attractor.dt not in {"none", "None"}:
         model.dt = cfg.attractor.dt
     nsamples = cfg.data.nsamples
     time = cfg.data.time
 
-    model.ic = model.ic[None, :] * np.random.random(nsamples)[:, None]
+    model.ic = (
+        model.ic[None, :] * 5 * np.random.random(nsamples)[:, None]
+    )  # getting arbitrary dispersion
     data = model.make_trajectory(
-        time, resample=cfg.attractor.resample, noise=cfg.attractor.driven_noise
+        time + 200, resample=cfg.attractor.resample, noise=cfg.attractor.driven_noise
     )
+    data = data[:, 200:]  # filter out the transient
+
     data += np.random.randn(*data.shape) * cfg.attractor.observed_noise
+    # plot x and delay embedded x and y
+    fig, ax = plt.subplots(1, 2, figsize=(10, 10))
+    for i in range(min(15, data.shape[0])):
+        ax[0].plot(data[i, :, 0], data[i, :, 1], c="k", alpha=0.5)
+        ax[1].plot(data[i, :, cfg.attractor.dim_observed])
+    plt.savefig("attractor.png")
+    plt.close()
+
     data = torch.tensor(data).float()
 
     # print(data.shape, data_used.shape)
@@ -73,31 +102,36 @@ def train(
     if isinstance(nsteps, int):
         nsteps = [nsteps]
     if cfg.train.schedule is not None:
-        lr_scheduler = CosineWarmupScheduler(optimizer=optimizer, warmup=100, max_iters=epochs*nsteps)
+        lr_scheduler = CosineWarmupScheduler(
+            optimizer=optimizer, warmup=100, max_iters=epochs * len(nsteps)
+        )
 
     model.to(device)
     dim_observed = cfg.attractor.dim_observed
     train_loss = []
     val_losses = []
-    for j,n in enumerate(nsteps):
+    for j, n in enumerate(nsteps):
         for epoch in tqdm(range(epochs)):
             model.train()
             total_loss = 0
             for i, data in enumerate(train_set):
                 data = data[:, :, dim_observed : dim_observed + 1]
 
-                x = data[:, :-n]
-                y = data[:, n:]
+                x = data[:, :-1]
+                # y = data[:, n:]#ypred = data[:,1:1-n]
 
                 x = x.to(device)
-                y = y.to(device)
-                optimizer.zero_grad()
-                for _ in range(n):
+                for t in range(1, n + 1):
+                    tn = t - n if t - n < 0 else None  # so we don't index from zero
+                    y = data[:, t:tn].to(device)
+                    optimizer.zero_grad()
+
                     y_pred, _ = model(x)
                     x = y_pred
-                loss = loss_fn(y_pred, y)
-                loss.backward()
-                optimizer.step()
+
+                    loss = loss_fn(y_pred, y)
+                    loss.backward()
+                    optimizer.step()
 
                 total_loss += loss.item()
             train_loss.append(total_loss / len(train_set))
@@ -105,10 +139,13 @@ def train(
             print(f"Epoch {epoch} Training Loss: {total_loss/len(train_set)}")
             # log on wandb instead
             wandb.log({"train_loss": total_loss / len(train_set)})
-            wandb.log({'lr': lr_scheduler.get_lr()[0]})
+            wandb.log({"lr": lr_scheduler.get_lr()[0]})
             if epoch % cfg.train.eval_nsteps == 0:
                 # save the model
-                torch.save(model.state_dict(), os.getcwd() + f"/{cfg.model.name}_{epoch*(j+1)}.pt")
+                torch.save(
+                    model.state_dict(),
+                    os.getcwd() + f"/{cfg.model.model_name}_{epoch*(j+1)}.pt",
+                )
 
                 model.eval()
                 data = next(iter(val_set))
@@ -119,34 +156,65 @@ def train(
                 x = x.to(device)
                 y = y.to(device)
                 y_pred, hiddens = model(x)
+
                 # run the evals here
                 # need to get the full state space of x
-                eval_embedding(
-                    attractor, model, data[:, :-1], x, y, y_pred, hiddens, cfg
-                )
+                eval_embedding(attractor, model, data[:, :-1], y, y_pred, hiddens, cfg)
+
+                if "eval_nstep" in cfg.eval.metrics:
+                    eval_nstep(model, data, cfg, epoch)
 
                 loss = loss_fn(y_pred, y)
                 val_loss = loss.item()
                 val_losses.append(val_loss)
 
                 wandb.log({"val_loss": val_loss / len(val_set)})
+                print(f"Epoch {epoch} Validation Loss: {val_loss/len(val_set)}")
+
+                sig, E_k, eps_k = compute_noise_amp_k(
+                    x,
+                    hiddens,
+                    cfg.eval.noise_amp.k,
+                    cfg.eval.noise_amp.maxT,
+                    normalize=cfg.eval.noise_amp.normalize,
+                )
+                wandb.log({"noise_amplification": sig})
+                wandb.log({f"E^2_{cfg.eval.noise_amp.k}": E_k})
+                wandb.log({f"eps^2_{cfg.eval.noise_amp.k}": eps_k})
+                print(f"Epoch {epoch} amplification: {sig}")
+                print(f"Epoch {epoch} E^2_{cfg.eval.noise_amp.k}: {E_k}")
 
                 print(f"Epoch {epoch} Validation Loss: {val_loss/len(val_set)}")
     return model, train_loss, val_losses
 
 
-@hydra.main(config_path="conf", config_name="config")
+@hydra.main(config_path="conf", config_name="config", version_base="1.1")
 def main(cfg: DictConfig):
-    model = eval(cfg.model.name)(**cfg.model.kwargs)
+    sys.path.append("/om2/user/ostrow/NN_delay_embeddings/nn_delay_embeddings/src")
+    from src.models import RNN, Mamba, S4, GPT, LRU
+
+    model = init_mod[cfg.model.model_name](
+        **cfg.model.kwargs
+    )  # eval(cfg.model.model_name)(**cfg.model.kwargs)
     model.train()
+    # calcualte the number of parameters
+    num_params = sum(p.numel() for p in model.parameters())
+
     dict_cfg = {
         **cfg.model.kwargs,
-        "model_name": cfg.model.name,
+        "model_name": cfg.model.model_name,
+        "num_params": num_params,
         **cfg.attractor,
         **cfg.data,
         **cfg.train,
     }
-    wandb.init(project="nn_delays", config=dict_cfg)
+    # create a random number ind
+    ind = np.random.randint(9999)
+    wandb.init(
+        project="nn_delays",
+        config=dict_cfg,
+        name=f"{cfg.model.model_name}_{num_params // 1000}params_{ind}",
+    )
 
     wandb.watch(model, log_freq=100)
 
@@ -155,12 +223,12 @@ def main(cfg: DictConfig):
     _, val_loader, val_dat = gen_data(cfg)
 
     # train the model
-    optimizer = eval(cfg.train.optimizer)
+    optimizer = init_optim[cfg.train.optimizer]  # eval(cfg.train.optimizer)
     optimizer = optimizer(
         model.parameters(), lr=cfg.train.lr, weight_decay=cfg.train.weight_decay
     )
 
-    loss = eval(cfg.train.loss)()
+    loss = init_loss[cfg.train.loss]()  # eval(cfg.train.loss)()
     model, train_loss, val_loss = train(
         cfg,
         attractor,
@@ -174,7 +242,6 @@ def main(cfg: DictConfig):
         nsteps=cfg.train.nsteps,
     )
 
- 
     # run metric evaluation
     model.eval()
 

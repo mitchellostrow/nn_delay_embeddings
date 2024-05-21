@@ -1,9 +1,11 @@
-name: LRU
+model_name: LRU
 kwargs:
   input_dim: 1
   d_model: 10
   d_state: 100
   dropout: 0.0
-  expansion: 4
+  mlp_hidden: 
   rmin: 0.8
   rmax: 0.99
+  siso: False
+  

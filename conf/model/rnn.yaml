@@ -1,4 +1,4 @@
-name: RNN
+model_name: RNN
 kwargs:
   input_dim: 1
   architecture: VanillaRNN
