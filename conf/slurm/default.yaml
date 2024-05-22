@@ -5,13 +5,13 @@ defaults:
 hydra:
   launcher:
     cpus_per_task: 2
-    gpus_per_task: 0
+    gpus_per_task: 1
     tasks_per_node: 1
     nodes: 1
     mem_gb: 16
-    partition: normal
+    partition: fiete
     # additional_parameters:
       # mail-user: ostrow@mit.edu
       # mail-type: END,FAIL,TIME_LIMIT
-    array_parallelism: 800
-    timeout_min: 1440 # 24 hours by defaullt
+    array_parallelism: 40
+    timeout_min: 400 # 24 hours by defaullt

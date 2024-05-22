@@ -5,6 +5,6 @@ kwargs:
   n_head: 1
   context_length: 500
   mlp_hidden: 
-  seed: 10
+  seed:
   temp:
   use_pe: False

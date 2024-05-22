@@ -139,7 +139,8 @@ class LRUMinimal(nn.Module):
 
         self.encoder = nn.Linear(input_dim, d_model)
 
-        self.layernorm = nn.LayerNorm(d_model)
+        self.ln = nn.LayerNorm(d_model)
+        self.ln2 = nn.LayerNorm(d_model)
 
         if not siso:
             self.lru = LRUBlock(
@@ -167,7 +168,8 @@ class LRUMinimal(nn.Module):
     def forward(self, inputs):
         # make sure shape is correct here!
         x = self.encoder(inputs)
-        x = self.layernorm(x)
+        x = self.ln(x)
         hiddens, x = self.lru(x, rnn=self.rnn)
+        x = self.ln2(x)
         x = self.mlp(x)
         return x, hiddens

@@ -14,14 +14,14 @@ attractor:
 
 data:
   time: 500
-  nsamples: 1000
+  nsamples: 2000
   batch_size: 10
 
 train:
   optimizer: AdamW
   lr: 0.001
   weight_decay: 0.00
-  epochs: 500
+  epochs: 1000
   loss: MSE
   nsteps: 1 #train on nstep prediction
   eval_nsteps: 50

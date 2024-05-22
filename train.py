@@ -53,7 +53,7 @@ class CosineWarmupScheduler(lr_scheduler._LRScheduler):
         return lr_factor
 
 
-def gen_data(cfg,plot=True):
+def gen_data(cfg, plot=True):
     model = init_flow[cfg.attractor.name]()  # eval(cfg.attractor.name)()
     if cfg.attractor.dt is not None and cfg.attractor.dt not in {"none", "None"}:
         model.dt = cfg.attractor.dt

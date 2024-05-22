@@ -154,6 +154,7 @@ def eval_nstep(model, data, cfg, epoch):
     plt.figure()
     plt.plot(data[0, :, 0], label="true", c="k")
     for i in range(1, n + 1):  # only observe a few
+        # TODO: fix
         x = x.to(device)
         y_pred, hiddens = model(x)
         tn = i - n if i - n < 0 else None
