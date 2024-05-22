@@ -94,7 +94,7 @@ class Block(nn.Module):
 
         self.ln_2 = LayerNorm(d_model, bias=True)
 
-    def forward(self, x, pe_softmax):
+    def forward(self, x, pe_softmax=None):
         x = self.ln_1(x)
         o = self.attn(x, pe_softmax)
 
