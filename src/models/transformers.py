@@ -195,7 +195,6 @@ class GPT(nn.Module):
             x = self.transformer.h(x)
 
         x = self.transformer.mlp(x)
-
         return x, self.transformer.h.attn_out
 
     def forward_long(self, x):

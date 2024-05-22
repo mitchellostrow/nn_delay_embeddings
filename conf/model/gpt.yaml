@@ -8,3 +8,4 @@ kwargs:
   seed:
   temp:
   use_pe: False
+  pe_type: learnable
