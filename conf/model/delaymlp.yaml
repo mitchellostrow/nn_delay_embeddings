@@ -1,0 +1,6 @@
+model_name: DelayedMLP
+kwargs:
+  input_dim: 1
+  d_model: 10
+  n_delays: 10
+  delay_interval: 1
