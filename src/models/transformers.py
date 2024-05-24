@@ -64,7 +64,7 @@ class CausalSelfAttention(nn.Module):
         attn_weight += attn_bias
         self.attn_scores = torch.softmax(attn_weight, dim=-1)
 
-        out = self.attn_scores @ v
+        out = self.attn_scores @ v # (B, nh, T, T) x (B, nh, T, hs) -> (B, nh, T, hs)
 
         out = out.transpose(1, 2).contiguous().view(batch, length, dim)
         out = self.attn_out(out)
